@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/banner.png" alt="Brutal Claude Skills — Thirteen skills. Zero sugar. All impact." width="100%" />
+<img src="./assets/banner-gpt.png" alt="Brutal Claude Skills — Thirteen skills. Zero sugar. All impact." width="100%" />
 
 <br />
 
