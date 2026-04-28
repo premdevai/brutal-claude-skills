@@ -1,5 +1,9 @@
 <div align="center">
 
+<img src="./assets/banner.png" alt="Brutal Claude Skills — Thirteen skills. Zero sugar. All impact." width="100%" />
+
+<br />
+
 # brutal-claude-skills
 
 **13 no-mercy, adversarial-helpful skills for Claude Code.**
