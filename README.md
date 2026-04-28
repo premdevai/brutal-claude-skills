@@ -35,27 +35,52 @@ Every skill stays on the **work**, not the **person**. Hard limits are baked in.
 
 ## Install
 
+Get started instantly with the interactive CLI:
+
 ```bash
-# Interactive — pick skills, packs, or all
-npx brutal-claude-skills
+# Initialize your environment and install recommended skills
+npx brutal-claude-skills init
 
-# Install everything
-npx brutal-claude-skills --all
-
-# Install a single skill
-npx brutal-claude-skills --skill brutal-code-reviewer
-
-# Install a skill pack (bundle)
-npx brutal-claude-skills --pack engineering
-
-# List what's available (categorized)
-npx brutal-claude-skills --list
+# See all available commands
+npx brutal-claude-skills help
 ```
 
 Skills install to `~/.claude/skills/` by default (the directory Claude Code reads from).
 
-> [!TIP]
-> Restart Claude Code after installing so it picks up the new skills.
+---
+
+## ⚡ Quick Usage
+
+Once installed, use the killer feature to pipe or paste code directly into a brutal review:
+
+```bash
+# Pipe git diff straight to the reviewer
+git diff | npx brutal-claude-skills use code-reviewer
+
+# Or run interactively (paste your code)
+npx brutal-claude-skills use architecture-reviewer --level 10
+```
+
+*This will automatically launch Claude Code with the correct prompt and your input.*
+
+---
+
+## Command Reference
+
+The CLI uses a clean, one-command mental model: `brutal <action>`. 
+*(Note: If installing globally via `npm i -g brutal-claude-skills`, you can just type `brutal` instead of `npx brutal-claude-skills`)*
+
+```bash
+brutal init               # First-time setup (installs engineering pack)
+brutal install <skill>    # Install specific skills (alias: i)
+brutal use <skill>        # Interactive prompt or piped input
+brutal list               # List all skills (alias: ls)
+brutal status             # Check installed skills (alias: st)
+brutal remove <skill>     # Remove skills (alias: rm)
+brutal doctor             # Run diagnostics
+brutal export cursor      # Export to Cursor (.cursorrules)
+brutal upgrade            # Check for updates
+```
 
 ---
 
@@ -64,7 +89,7 @@ Skills install to `~/.claude/skills/` by default (the directory Claude Code read
 Don't want everything? Install curated bundles:
 
 ```bash
-npx brutal-claude-skills --pack <name>
+brutal install pack <name>
 ```
 
 | Pack | Skills | What it covers |
@@ -72,33 +97,28 @@ npx brutal-claude-skills --pack <name>
 | **`engineering`** | 4 | Code reviewer, commit reviewer, design critic, architecture reviewer |
 | **`writing`** | 3 | Writing editor, README reviewer, email reviewer |
 | **`strategy`** | 4 | Devil's advocate, pre-mortem, assumption auditor, BS detector |
-| **`career`** | 3 | Resume reviewer, pitch reviewer, interview prep destroyer |
+| **`career`** | 2 | Resume reviewer, interview prep destroyer |
+| **`founder`** | 4 | Pitch reviews, writing, architecture, BS detector |
 | **`fun`** | 1 | Roast mode |
 
 ---
 
-## Team Install
+## Team Install (Project Level)
 
 Install skills at the project level so your whole team gets them via git:
 
 ```bash
 # Install to .claude/skills/ in your current project
-npx brutal-claude-skills --all --project
+brutal install all --project
 
 # Commit to share with your team
-git add .claude/skills/ && git commit -m "feat: add brutal skills"
+git add .claude/skills/ && git commit -m "chore: add brutal claude skills for the team"
 ```
 
 Check what's installed globally vs. in the current project:
 
 ```bash
-npx brutal-claude-skills --status
-```
-
-Preview a skill before installing:
-
-```bash
-npx brutal-claude-skills --preview roast-mode
+brutal status
 ```
 
 ---
