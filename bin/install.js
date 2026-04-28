@@ -220,6 +220,8 @@ function parseArgs(argv) {
     pack: null,
     preview: null,
     status: false,
+    export: false,
+    exportTarget: null,
   };
 
   for (let i = 2; i < argv.length; i++) {
@@ -234,6 +236,10 @@ function parseArgs(argv) {
     else if (a === "--pack") args.pack = argv[++i];
     else if (a === "--preview") args.preview = argv[++i];
     else if (a === "--status") args.status = true;
+    else if (a === "export") {
+      args.export = true;
+    }
+    else if (a === "--export-target") args.exportTarget = argv[++i];
     else if (a === "--uninstall" || a === "-u") {
       args.uninstall = true;
       // Check if next arg is a skill name (not a flag)
@@ -271,6 +277,7 @@ function printHelp() {
   ${c.cyan("npx brutal-claude-skills --pack")} ${c.dim("<name>")}        Install a skill pack
   ${c.cyan("npx brutal-claude-skills --project")}             Install to current project
   ${c.cyan("npx brutal-claude-skills --preview")} ${c.dim("<name>")}     Preview a skill
+  ${c.cyan("npx brutal-claude-skills export")}                Export to Cursor/Copilot
   ${c.cyan("npx brutal-claude-skills --status")}              Show installed skills
   ${c.cyan("npx brutal-claude-skills --target")} ${c.dim("<path>")}      Override install target
   ${c.cyan("npx brutal-claude-skills --uninstall")} ${c.dim("<name>")}   Uninstall a skill
@@ -284,6 +291,7 @@ ${c.bold("FLAGS")}
   ${c.cyan("    --pack")} ${c.dim("<name>")}    Install a pack: ${c.dim(Object.keys(PACKS).join(", "))}
   ${c.cyan("-p, --project")}       Install to ${c.dim(".claude/skills/")} in current project
   ${c.cyan("    --preview")} ${c.dim("<name>")} Preview a skill's content before installing
+  ${c.cyan("    --export-target")} ${c.dim("<cursor|copilot>")} Format to export to
   ${c.cyan("    --status")}        Show what's installed and where
   ${c.cyan("-t, --target")} ${c.dim("<path>")}  Override install directory ${c.gray(`(default: ~/.claude/skills)`)}
   ${c.cyan("-u, --uninstall")}     Uninstall instead of install
@@ -316,6 +324,9 @@ ${c.bold("EXAMPLES")}
 
   ${c.gray("# Check what's installed")}
   npx brutal-claude-skills --status
+
+  ${c.gray("# Export for Cursor (.cursorrules)")}
+  npx brutal-claude-skills export --export-target cursor --pack engineering
 
   ${c.gray("# Just the code reviewer")}
   npx brutal-claude-skills --skill brutal-code-reviewer
@@ -561,6 +572,29 @@ async function interactiveInstall(skills, target) {
   );
 }
 
+function exportSkill(skillName, exportTarget, outPath) {
+  const content = readSkillContent(skillName);
+  if (!content) return false;
+
+  // Strip frontmatter
+  let cleanContent = content.replace(/^---\n([\s\S]*?)\n---\n/, '').trim();
+  
+  const header = `You are adopting the following persona for all interactions in this project:\n\n`;
+
+  let finalContent = cleanContent;
+  if (exportTarget === 'cursor' || exportTarget === 'copilot') {
+    finalContent = header + cleanContent;
+  }
+
+  // If file exists, append (for packs), otherwise create
+  if (fs.existsSync(outPath)) {
+    fs.appendFileSync(outPath, "\n\n---\n\n" + cleanContent, "utf8");
+  } else {
+    fs.writeFileSync(outPath, finalContent, "utf8");
+  }
+  return true;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -581,6 +615,46 @@ async function main() {
   // ── Preview ──
   if (args.preview) {
     printPreview(args.preview);
+    return;
+  }
+
+  // ── Export ──
+  if (args.export) {
+    if (!args.exportTarget || (args.exportTarget !== 'cursor' && args.exportTarget !== 'copilot')) {
+      console.error(c.red("\n  Please specify --export-target cursor or --export-target copilot\n"));
+      process.exit(1);
+    }
+
+    let outPath = "";
+    if (args.exportTarget === 'cursor') {
+      outPath = path.join(process.cwd(), ".cursorrules");
+    } else if (args.exportTarget === 'copilot') {
+      const githubDir = path.join(process.cwd(), ".github");
+      if (!fs.existsSync(githubDir)) fs.mkdirSync(githubDir);
+      outPath = path.join(githubDir, "copilot-instructions.md");
+    }
+
+    let toExport = [];
+    if (args.skill) toExport = [args.skill];
+    else if (args.pack && PACKS[args.pack]) toExport = PACKS[args.pack].skills;
+    else if (args.all) toExport = skills;
+    else {
+      console.error(c.red("\n  Please specify --skill <name>, --pack <name>, or --all to export.\n"));
+      process.exit(1);
+    }
+
+    // Clear existing if we are overwriting
+    if (fs.existsSync(outPath)) {
+      console.log(`  ${c.yellow("⚠")} Overwriting existing ${path.basename(outPath)}`);
+      fs.unlinkSync(outPath);
+    }
+
+    let count = 0;
+    toExport.forEach(s => {
+      if (exportSkill(s, args.exportTarget, outPath)) count++;
+    });
+
+    console.log(`\n  ${c.green("✓")} Exported ${count} skill(s) to ${c.cyan(outPath)}\n`);
     return;
   }
 

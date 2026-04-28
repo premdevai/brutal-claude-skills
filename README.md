@@ -180,7 +180,36 @@ Every skill supports a **brutality level** from 0 to 10. Default is **7**. Just 
 | 9–10 | **Nuclear** | Profanity unlocked. Gordon Ramsay mode. |
 
 > [!IMPORTANT]
-> Even at level 10, hard limits apply. Curse words land on the **work**, never on the person. Identity-based attacks are off-limits at every level.
+### Export to Cursor & Copilot
+
+You can use these brutal personas in other AI coding assistants. Export them as a `.cursorrules` file for Cursor, or a `.github/copilot-instructions.md` file for GitHub Copilot.
+
+```bash
+# Export the engineering pack to Cursor
+npx brutal-claude-skills export --export-target cursor --pack engineering
+
+# Export a specific skill to GitHub Copilot
+npx brutal-claude-skills export --export-target copilot --skill brutal-code-reviewer
+```
+
+### Programmatic API
+
+Building a custom PR review bot? An internal Slack integration? You can consume the prompts programmatically via Node.js:
+
+```javascript
+const { getSkill, listSkills } = require('brutal-claude-skills');
+
+// Get all available skill names
+const skills = listSkills();
+
+// Get the raw prompt for a specific skill, overriding the default brutality level
+const prompt = getSkill('brutal-code-reviewer', { 
+  stripFrontmatter: true, 
+  level: 10 
+});
+
+console.log(prompt); // Use this in your Anthropic API calls
+```
 
 ---
 
