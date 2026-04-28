@@ -10,8 +10,8 @@
 
 Code reviews, roasting, design critiques, devil's advocate, pre-mortems, and more — all designed to make your work better, not your feelings warmer.
 
-[![version](https://img.shields.io/badge/version-0.1.0-cb3837?style=flat-square)](./package.json)
-[![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
+[![npm version](https://img.shields.io/npm/v/brutal-claude-skills?style=flat-square&color=cb3837)](https://www.npmjs.com/package/brutal-claude-skills)
+[![npm downloads](https://img.shields.io/npm/dt/brutal-claude-skills?style=flat-square&color=blue)](https://www.npmjs.com/package/brutal-claude-skills)
 [![node](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js&logoColor=white)](./package.json)
 [![skills](https://img.shields.io/badge/skills-15-f59e0b?style=flat-square)](./skills)
 [![zero deps](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](./package.json)
