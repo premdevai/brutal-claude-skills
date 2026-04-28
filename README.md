@@ -10,10 +10,11 @@
 
 Code reviews, roasting, design critiques, devil's advocate, pre-mortems, and more — all designed to make your work better, not your feelings warmer.
 
-[![npm version](https://img.shields.io/npm/v/brutal-claude-skills.svg?style=flat-square&color=cb3837)](https://www.npmjs.com/package/brutal-claude-skills)
-[![license](https://img.shields.io/npm/l/brutal-claude-skills.svg?style=flat-square&color=blue)](./LICENSE)
-[![node](https://img.shields.io/node/v/brutal-claude-skills.svg?style=flat-square)](./package.json)
-[![downloads](https://img.shields.io/npm/dm/brutal-claude-skills.svg?style=flat-square&color=green)](https://www.npmjs.com/package/brutal-claude-skills)
+[![version](https://img.shields.io/badge/version-0.1.0-cb3837?style=flat-square)](./package.json)
+[![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](./LICENSE)
+[![node](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js&logoColor=white)](./package.json)
+[![skills](https://img.shields.io/badge/skills-15-f59e0b?style=flat-square)](./skills)
+[![zero deps](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](./package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](./CONTRIBUTING.md)
 
 [Install](#install) · [Skills](#the-skills) · [Usage](#usage) · [Create Your Own](#creating-your-own-skill) · [Contributing](#contributing)
