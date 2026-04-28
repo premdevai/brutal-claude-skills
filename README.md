@@ -157,6 +157,30 @@ Once installed, you don't need to do anything special. Each skill has a descript
 
 You can also name a skill explicitly if you want a specific one.
 
+### Brutality Scale (0–10)
+
+Every skill supports a **brutality level** from 0 to 10. Default is **7**. Just tell Claude how hard to go:
+
+```
+"Review my code, level 3"           → professional, no sarcasm
+"Review my code"                    → default (7), savage
+"Review my code, go nuclear"        → level 10, profanity unlocked
+"Be gentle with this one"           → level 1–2
+"Maximum brutality"                 → level 10
+"Turn it down"                      → drops 3 levels mid-conversation
+```
+
+| Level | Name | Vibe |
+| :---: | :--- | :--- |
+| 0–2 | **Cool** | Professional 1:1. Honest but no edge. |
+| 3–4 | **Blunt** | "This is bad. Here's why." |
+| 5–6 | **Harsh** | Sarcastic. Impatient. Cutting. |
+| 7–8 | **Savage** | Mocking. Dismissive. Full roast energy. |
+| 9–10 | **Nuclear** | Profanity unlocked. Gordon Ramsay mode. |
+
+> [!IMPORTANT]
+> Even at level 10, hard limits apply. Curse words land on the **work**, never on the person. Identity-based attacks are off-limits at every level.
+
 ---
 
 ## Manual Install (no npm)
