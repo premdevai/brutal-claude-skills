@@ -1,7 +1,7 @@
 {
   "name": "brutal-claude-skills",
   "version": "0.1.0",
-  "description": "13 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
+  "description": "15 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
   "bin": {
     "brutal-skills": "./bin/install.js"
   },

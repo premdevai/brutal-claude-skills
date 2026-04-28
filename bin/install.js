@@ -38,6 +38,7 @@ const PACKS = {
       "brutal-code-reviewer",
       "brutal-commit-message-reviewer",
       "brutal-design-critic",
+      "brutal-architecture-reviewer",
     ],
   },
   writing: {
@@ -58,10 +59,11 @@ const PACKS = {
     ],
   },
   career: {
-    description: "Resumes, pitches, and professional docs",
+    description: "Resumes, pitches, and interview prep",
     skills: [
       "brutal-resume-reviewer",
       "brutal-pitch-reviewer",
+      "interview-prep-destroyer",
     ],
   },
   fun: {
@@ -75,7 +77,7 @@ const PACKS = {
 // ── Skill Categories ──────────────────────────────────────────────────
 
 const CATEGORIES = {
-  "🔍 CRITICS": [
+  "CRITICS": [
     "brutal-code-reviewer",
     "brutal-writing-editor",
     "brutal-design-critic",
@@ -84,14 +86,18 @@ const CATEGORIES = {
     "brutal-readme-reviewer",
     "brutal-commit-message-reviewer",
     "brutal-email-reviewer",
+    "brutal-architecture-reviewer",
   ],
-  "🧠 ADVERSARIAL THINKING": [
+  "ADVERSARIAL THINKING": [
     "devils-advocate",
     "pre-mortem",
     "bs-detector",
     "assumption-auditor",
   ],
-  "🎤 ENTERTAINMENT": [
+  "CAREER & PREP": [
+    "interview-prep-destroyer",
+  ],
+  "ENTERTAINMENT": [
     "roast-mode",
   ],
 };

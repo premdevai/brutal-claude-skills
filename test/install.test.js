@@ -68,12 +68,15 @@ describe("--list", () => {
     assert.ok(output.includes("roast-mode"));
     assert.ok(output.includes("devils-advocate"));
     assert.ok(output.includes("pre-mortem"));
+    assert.ok(output.includes("brutal-architecture-reviewer"));
+    assert.ok(output.includes("interview-prep-destroyer"));
   });
 
   it("shows categories", () => {
     const output = run("--list");
     assert.ok(output.includes("CRITICS"), "should show CRITICS category");
     assert.ok(output.includes("ADVERSARIAL THINKING"), "should show ADVERSARIAL THINKING");
+    assert.ok(output.includes("CAREER"), "should show CAREER & PREP");
     assert.ok(output.includes("ENTERTAINMENT"), "should show ENTERTAINMENT");
   });
 
@@ -176,7 +179,7 @@ describe("install and uninstall", () => {
     const dirs = fs
       .readdirSync(tmpTarget, { withFileTypes: true })
       .filter((d) => d.isDirectory());
-    assert.ok(dirs.length >= 13, `Expected >= 13, got ${dirs.length}`);
+    assert.ok(dirs.length >= 15, `Expected >= 15, got ${dirs.length}`);
   });
 
   it("uninstalls a single skill", () => {

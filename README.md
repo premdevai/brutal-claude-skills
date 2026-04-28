@@ -6,7 +6,7 @@
 
 # brutal-claude-skills
 
-**13 no-mercy, adversarial-helpful skills for Claude Code.**
+**15 no-mercy, adversarial-helpful skills for Claude Code.**
 
 Code reviews, roasting, design critiques, devil's advocate, pre-mortems, and more — all designed to make your work better, not your feelings warmer.
 
@@ -68,10 +68,10 @@ npx brutal-claude-skills --pack <name>
 
 | Pack | Skills | What it covers |
 | :--- | :---: | :--- |
-| **`engineering`** | 3 | Code reviewer, commit reviewer, design critic |
+| **`engineering`** | 4 | Code reviewer, commit reviewer, design critic, architecture reviewer |
 | **`writing`** | 3 | Writing editor, README reviewer, email reviewer |
 | **`strategy`** | 4 | Devil's advocate, pre-mortem, assumption auditor, BS detector |
-| **`career`** | 2 | Resume reviewer, pitch reviewer |
+| **`career`** | 3 | Resume reviewer, pitch reviewer, interview prep destroyer |
 | **`fun`** | 1 | Roast mode |
 
 ---
@@ -104,11 +104,12 @@ npx brutal-claude-skills --preview roast-mode
 
 ## The Skills
 
-### 🔍 Brutal Critics — review your work product
+### <img src="https://img.shields.io/badge/CRITICS-9_skills-dc2626?style=flat-square&labelColor=1c1917" alt="Critics" /> — review your work product
 
 | Skill | What it tears apart |
 | :--- | :--- |
 | **`brutal-code-reviewer`** | Code, PRs, diffs — no mercy engineering scrutiny |
+| **`brutal-architecture-reviewer`** | System design, service boundaries, infra decisions |
 | **`brutal-writing-editor`** | Essays, blog posts, articles, copy |
 | **`brutal-design-critic`** | UI, UX, landing pages, Figma designs |
 | **`brutal-resume-reviewer`** | Resumes, CVs, cover letters, LinkedIn profiles |
@@ -117,7 +118,7 @@ npx brutal-claude-skills --preview roast-mode
 | **`brutal-commit-message-reviewer`** | Git history, PR titles, PR descriptions |
 | **`brutal-email-reviewer`** | Professional emails, cold outreach |
 
-### 🧠 Adversarial Thinking — interrogate your decisions
+### <img src="https://img.shields.io/badge/ADVERSARIAL_THINKING-4_skills-f59e0b?style=flat-square&labelColor=1c1917" alt="Adversarial Thinking" /> — interrogate your decisions
 
 | Skill | What it does |
 | :--- | :--- |
@@ -126,7 +127,13 @@ npx brutal-claude-skills --preview roast-mode
 | **`bs-detector`** | Audits text/claims for vague language, weasel words, unsupported assertions |
 | **`assumption-auditor`** | Surfaces the unspoken premises your plan rests on |
 
-### 🎤 Pure Entertainment
+### <img src="https://img.shields.io/badge/CAREER_&_PREP-1_skill-8b5cf6?style=flat-square&labelColor=1c1917" alt="Career & Prep" /> — survive the real thing
+
+| Skill | What it does |
+| :--- | :--- |
+| **`interview-prep-destroyer`** | Tears apart practice interview answers, STAR stories, and technical explanations |
+
+### <img src="https://img.shields.io/badge/ENTERTAINMENT-1_skill-22c55e?style=flat-square&labelColor=1c1917" alt="Entertainment" /> — pure chaos
 
 | Skill | What it does |
 | :--- | :--- |
