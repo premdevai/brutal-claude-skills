@@ -40,6 +40,23 @@ describe("--help", () => {
     assert.ok(output.includes("--uninstall"));
     assert.ok(output.includes("--version"));
   });
+
+  it("shows new flags", () => {
+    const output = run("--help");
+    assert.ok(output.includes("--project"), "should show --project flag");
+    assert.ok(output.includes("--pack"), "should show --pack flag");
+    assert.ok(output.includes("--preview"), "should show --preview flag");
+    assert.ok(output.includes("--status"), "should show --status flag");
+  });
+
+  it("shows available packs", () => {
+    const output = run("--help");
+    assert.ok(output.includes("engineering"), "should list engineering pack");
+    assert.ok(output.includes("writing"), "should list writing pack");
+    assert.ok(output.includes("strategy"), "should list strategy pack");
+    assert.ok(output.includes("career"), "should list career pack");
+    assert.ok(output.includes("fun"), "should list fun pack");
+  });
 });
 
 // ── List ──────────────────────────────────────────────────────────────
@@ -53,11 +70,58 @@ describe("--list", () => {
     assert.ok(output.includes("pre-mortem"));
   });
 
+  it("shows categories", () => {
+    const output = run("--list");
+    assert.ok(output.includes("CRITICS"), "should show CRITICS category");
+    assert.ok(output.includes("ADVERSARIAL THINKING"), "should show ADVERSARIAL THINKING");
+    assert.ok(output.includes("ENTERTAINMENT"), "should show ENTERTAINMENT");
+  });
+
+  it("shows total count", () => {
+    const output = run("--list");
+    assert.ok(output.includes("skills available"), "should show total count");
+  });
+
   it("lists at least 13 skills", () => {
     const dirs = fs
       .readdirSync(SKILLS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory());
     assert.ok(dirs.length >= 13, `Expected >= 13 skills, got ${dirs.length}`);
+  });
+});
+
+// ── Preview ──────────────────────────────────────────────────────────
+
+describe("--preview", () => {
+  it("shows skill preview for a valid skill", () => {
+    const output = run("--preview", "roast-mode");
+    assert.ok(output.includes("Preview:"), "should show preview header");
+    assert.ok(output.includes("roast-mode"), "should show skill name");
+    assert.ok(output.includes("Sections:"), "should show sections");
+    assert.ok(output.includes("Install with:"), "should show install hint");
+  });
+
+  it("shows sections from the skill", () => {
+    const output = run("--preview", "brutal-code-reviewer");
+    assert.ok(output.includes("Persona") || output.includes("Behavior") || output.includes("Tone"),
+      "should list at least one section header");
+  });
+
+  it("fails for nonexistent skill", () => {
+    assert.throws(
+      () => run("--preview", "nonexistent-skill"),
+      /not found/i
+    );
+  });
+});
+
+// ── Status ───────────────────────────────────────────────────────────
+
+describe("--status", () => {
+  it("shows global and project status", () => {
+    const output = run("--status");
+    assert.ok(output.includes("Global"), "should show Global section");
+    assert.ok(output.includes("Project"), "should show Project section");
   });
 });
 
@@ -132,6 +196,50 @@ describe("install and uninstall", () => {
     assert.throws(
       () => run("--skill", "nonexistent-skill", "--target", tmpTarget),
       /nonexistent/i
+    );
+  });
+});
+
+// ── Packs ────────────────────────────────────────────────────────────
+
+describe("--pack", () => {
+  const tmpTarget = path.join(os.tmpdir(), `brutal-pack-test-${Date.now()}`);
+
+  after(() => {
+    if (fs.existsSync(tmpTarget)) {
+      fs.rmSync(tmpTarget, { recursive: true, force: true });
+    }
+  });
+
+  it("installs engineering pack", () => {
+    const output = run("--pack", "engineering", "--target", tmpTarget);
+    assert.ok(output.includes("Pack: engineering"), "should show pack name");
+    assert.ok(output.includes("skill(s) installed"), "should confirm install");
+
+    const codeReviewer = path.join(tmpTarget, "brutal-code-reviewer", "SKILL.md");
+    assert.ok(fs.existsSync(codeReviewer), "should install code reviewer");
+  });
+
+  it("installs strategy pack", () => {
+    const output = run("--pack", "strategy", "--target", tmpTarget);
+    assert.ok(output.includes("Pack: strategy"));
+
+    const da = path.join(tmpTarget, "devils-advocate", "SKILL.md");
+    assert.ok(fs.existsSync(da), "should install devils-advocate");
+  });
+
+  it("installs fun pack", () => {
+    const output = run("--pack", "fun", "--target", tmpTarget);
+    assert.ok(output.includes("Pack: fun"));
+
+    const roast = path.join(tmpTarget, "roast-mode", "SKILL.md");
+    assert.ok(fs.existsSync(roast), "should install roast-mode");
+  });
+
+  it("fails for unknown pack", () => {
+    assert.throws(
+      () => run("--pack", "nonexistent-pack", "--target", tmpTarget),
+      /Unknown pack/i
     );
   });
 });

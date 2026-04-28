@@ -35,7 +35,7 @@ Every skill stays on the **work**, not the **person**. Hard limits are baked in.
 ## Install
 
 ```bash
-# Interactive — pick which skills you want
+# Interactive — pick skills, packs, or all
 npx brutal-claude-skills
 
 # Install everything
@@ -44,15 +44,61 @@ npx brutal-claude-skills --all
 # Install a single skill
 npx brutal-claude-skills --skill brutal-code-reviewer
 
-# List what's available
+# Install a skill pack (bundle)
+npx brutal-claude-skills --pack engineering
+
+# List what's available (categorized)
 npx brutal-claude-skills --list
 ```
 
 Skills install to `~/.claude/skills/` by default (the directory Claude Code reads from).
-Override with `--target <path>` if you need a different location.
 
 > [!TIP]
 > Restart Claude Code after installing so it picks up the new skills.
+
+---
+
+## Skill Packs
+
+Don't want everything? Install curated bundles:
+
+```bash
+npx brutal-claude-skills --pack <name>
+```
+
+| Pack | Skills | What it covers |
+| :--- | :---: | :--- |
+| **`engineering`** | 3 | Code reviewer, commit reviewer, design critic |
+| **`writing`** | 3 | Writing editor, README reviewer, email reviewer |
+| **`strategy`** | 4 | Devil's advocate, pre-mortem, assumption auditor, BS detector |
+| **`career`** | 2 | Resume reviewer, pitch reviewer |
+| **`fun`** | 1 | Roast mode |
+
+---
+
+## Team Install
+
+Install skills at the project level so your whole team gets them via git:
+
+```bash
+# Install to .claude/skills/ in your current project
+npx brutal-claude-skills --all --project
+
+# Commit to share with your team
+git add .claude/skills/ && git commit -m "feat: add brutal skills"
+```
+
+Check what's installed globally vs. in the current project:
+
+```bash
+npx brutal-claude-skills --status
+```
+
+Preview a skill before installing:
+
+```bash
+npx brutal-claude-skills --preview roast-mode
+```
 
 ---
 
