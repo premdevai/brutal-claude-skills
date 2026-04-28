@@ -10,8 +10,8 @@
   "scripts": {
     "install-skills": "node ./bin/install.js",
     "list": "node ./bin/install.js --list",
-    "test": "node --test test/",
-    "test:ci": "node --test test/ --test-reporter spec",
+    "test": "node --test",
+    "test:ci": "node --test --test-reporter spec",
     "prepublishOnly": "npm test",
     "prepare": "echo 'Ready to publish'"
   },
