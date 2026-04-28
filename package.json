@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "description": "15 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
   "bin": {
-    "brutal-skills": "./bin/install.js"
+    "brutal-claude-skills": "bin/install.js",
+    "brutal-skills": "bin/install.js"
   },
   "scripts": {
     "install-skills": "node ./bin/install.js",
