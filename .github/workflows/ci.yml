@@ -28,15 +28,15 @@ jobs:
       - name: Run tests
         run: npm test
 
-      - name: Verify CLI --list
-        run: node bin/install.js --list
+      - name: Verify CLI list
+        run: node bin/cli.js list
 
-      - name: Verify CLI --help
-        run: node bin/install.js --help
+      - name: Verify CLI help
+        run: node bin/cli.js help
 
       - name: Verify skill count
         run: |
-          SKILL_COUNT=$(node bin/install.js --list 2>&1 | grep -c '^\s\s')
+          SKILL_COUNT=$(node bin/cli.js list 2>&1 | grep -c '^\s\s')
           echo "Found $SKILL_COUNT skills"
           if [ "$SKILL_COUNT" -lt 13 ]; then
             echo "Expected at least 13 skills"
