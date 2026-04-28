@@ -178,8 +178,9 @@ async function runInit() {
   console.log(`You're ready.\n`);
   console.log(`Try this in Claude Code:`);
   console.log(`→ "Review my last commit brutally"\n`);
-  console.log(`Or:`);
-  console.log(`→ brutal use code-reviewer\n`);
+  console.log(`Or set up auto-reviews (highly recommended):`);
+  console.log(`→ ${c.cyan("brutal hook github")}  ${c.dim("(Auto-review PRs)")}`);
+  console.log(`→ ${c.cyan("brutal hook git")}     ${c.dim("(Local pre-commit checks)")}\n`);
   console.log(`Run \`${c.cyan("brutal doctor")}\` if something feels off.\n`);
 }
 
@@ -502,6 +503,84 @@ function executeClaudeCLI(skillName, level, promptText, inputData) {
   }
 }
 
+// ── Integrations (Hooks) ──────────────────────────────────────────────
+
+async function runHook(args) {
+  const rawArgs = args.filter(a => !a.startsWith("-"));
+  const target = rawArgs[0];
+
+  if (!target || (target !== "github" && target !== "git")) {
+    console.error(c.red(`\n✗ Provide a valid hook target: 'github' or 'git'`));
+    console.error(`  Example: brutal hook github\n`);
+    return;
+  }
+
+  if (target === "github") {
+    const githubDir = path.join(process.cwd(), ".github", "workflows");
+    if (!fs.existsSync(githubDir)) fs.mkdirSync(githubDir, { recursive: true });
+    
+    const wfPath = path.join(githubDir, "brutal-review.yml");
+    const wfContent = `name: Brutal Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  brutal-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get PR diff
+        run: git fetch origin \${{ github.base_ref }}
+
+      - name: Run Brutal Review
+        run: |
+          git diff origin/\${{ github.base_ref }} > diff.txt
+          npx brutal-claude-skills use code-reviewer --level 8 < diff.txt > review.txt || echo "No diff found"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('review.txt')) {
+              const body = fs.readFileSync('review.txt', 'utf8');
+              if (body.trim()) {
+                github.rest.issues.createComment({
+                  ...context.repo,
+                  issue_number: context.issue.number,
+                  body
+                });
+              }
+            }
+`;
+    fs.writeFileSync(wfPath, wfContent, "utf8");
+    console.log(`\n  ${c.green("✔")} Created ${c.cyan(".github/workflows/brutal-review.yml")}`);
+    console.log(`\nEvery PR will now be brutally reviewed automatically.\n`);
+  } else if (target === "git") {
+    const hooksDir = path.join(process.cwd(), ".git", "hooks");
+    if (!fs.existsSync(hooksDir)) {
+      console.error(c.red(`\n✗ .git/hooks directory not found. Are you in a git repository?\n`));
+      return;
+    }
+
+    const preCommitPath = path.join(hooksDir, "pre-commit");
+    const preCommitContent = `#!/bin/sh
+# brutal pre-commit hook
+echo "🧨 Running Brutal Pre-commit Check..."
+git diff --cached | npx brutal-claude-skills use code-reviewer --level 6
+`;
+    fs.writeFileSync(preCommitPath, preCommitContent, "utf8");
+    fs.chmodSync(preCommitPath, "755");
+
+    console.log(`\n  ${c.green("✔")} Created ${c.cyan(".git/hooks/pre-commit")}`);
+    console.log(`\nYour staged changes will now be checked before every commit.\n`);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────
 
 async function main() {
@@ -541,6 +620,9 @@ async function main() {
     case "upgrade":
       console.log(`\nChecking for updates...\n\n✔ You're on latest version (${PKG.version})\n`);
       break;
+    case "hook":
+      await runHook(cmdArgs);
+      break;
     case "help":
     default:
       console.log(`
@@ -550,6 +632,7 @@ ${c.bold("Commands:")}
   ${c.cyan("brutal init")}           First-time setup
   ${c.cyan("brutal install [name]")} Install skills (alias: ${c.dim("i")})
   ${c.cyan("brutal use <skill>")}    Interactive prompt or piped input
+  ${c.cyan("brutal hook <target>")}  Auto-review integrations (github, git)
   ${c.cyan("brutal list")}           List all skills (alias: ${c.dim("ls")})
   ${c.cyan("brutal status")}         Check installed skills (alias: ${c.dim("st")})
   ${c.cyan("brutal remove <name>")}  Remove skills (alias: ${c.dim("rm")})
