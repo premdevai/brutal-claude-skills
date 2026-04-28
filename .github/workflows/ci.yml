@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Run tests
+        run: npm test
+
+      - name: Verify CLI --list
+        run: node bin/install.js --list
+
+      - name: Verify CLI --help
+        run: node bin/install.js --help
+
+      - name: Verify skill count
+        run: |
+          SKILL_COUNT=$(node bin/install.js --list 2>&1 | grep -c '^\s\s')
+          echo "Found $SKILL_COUNT skills"
+          if [ "$SKILL_COUNT" -lt 13 ]; then
+            echo "Expected at least 13 skills"
+            exit 1
+          fi
+
+  validate-skills:
+    name: Validate Skill Files
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check all skills have SKILL.md
+        run: |
+          for dir in skills/*/; do
+            skill_name=$(basename "$dir")
+            if [ ! -f "$dir/SKILL.md" ]; then
+              echo "ERROR: $skill_name is missing SKILL.md"
+              exit 1
+            fi
+            echo "✓ $skill_name/SKILL.md exists"
+          done
+
+      - name: Check frontmatter
+        run: |
+          for file in skills/*/SKILL.md; do
+            skill_name=$(basename "$(dirname "$file")")
+            if ! head -1 "$file" | grep -q '^---$'; then
+              echo "ERROR: $skill_name/SKILL.md missing frontmatter"
+              exit 1
+            fi
+            if ! grep -q '^name:' "$file"; then
+              echo "ERROR: $skill_name/SKILL.md missing 'name' in frontmatter"
+              exit 1
+            fi
+            if ! grep -q '^description:' "$file"; then
+              echo "ERROR: $skill_name/SKILL.md missing 'description' in frontmatter"
+              exit 1
+            fi
+            echo "✓ $skill_name frontmatter valid"
+          done

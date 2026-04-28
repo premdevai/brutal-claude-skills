@@ -1,0 +1,65 @@
+{
+  "name": "brutal-claude-skills",
+  "version": "0.1.0",
+  "description": "13 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
+  "bin": {
+    "brutal-skills": "./bin/install.js"
+  },
+  "scripts": {
+    "install-skills": "node ./bin/install.js",
+    "list": "node ./bin/install.js --list",
+    "test": "node --test 'test/**/*.test.js'",
+    "test:ci": "node --test 'test/**/*.test.js' --test-reporter spec",
+    "prepublishOnly": "npm test",
+    "prepare": "echo 'Ready to publish'"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "claude-skills",
+    "anthropic",
+    "code-review",
+    "ai",
+    "ai-skills",
+    "ai-prompts",
+    "skills",
+    "feedback",
+    "critique",
+    "roast",
+    "devils-advocate",
+    "pre-mortem",
+    "prompt-engineering",
+    "developer-tools"
+  ],
+  "author": "premdevai",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/premdevai/brutal-claude-skills.git"
+  },
+  "homepage": "https://github.com/premdevai/brutal-claude-skills#readme",
+  "bugs": {
+    "url": "https://github.com/premdevai/brutal-claude-skills/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/premdevai"
+  },
+  "files": [
+    "skills/",
+    "bin/",
+    "docs/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "type": "commonjs"
+}
