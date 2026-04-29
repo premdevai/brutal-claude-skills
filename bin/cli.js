@@ -31,17 +31,14 @@ const c = {
   gray: (s) => format("90", s),
 };
 
-// ── Characters ────────────────────────────────────────────────────────
-// Iconic characters mapped to brutality levels for instant recognition
+// ── Characters (The Hangover) ───────────────────────────────────────────
+// One franchise. Five characters. Perfectly escalating chaos.
 const CHARACTERS = {
-  baymax:   { level: 1,  name: "Baymax",          film: "Big Hero 6",         vibe: "Gentle. Caring. \"I am satisfied with my care.\" Honest but warm." },
-  alfred:   { level: 2,  name: "Alfred",          film: "The Dark Knight",    vibe: "Professional. Calm. The voice of reason in a quiet 1:1." },
-  spock:    { level: 4,  name: "Spock",           film: "Star Trek",          vibe: "Logical. Emotionless. \"That is illogical.\" No feelings, just facts." },
-  miranda:  { level: 5,  name: "Miranda Priestly", film: "Devil Wears Prada", vibe: "Sarcastic. Impatient. \"Is there some reason my coffee isn't here?\"" },
-  loki:     { level: 6,  name: "Loki",            film: "Thor / Avengers",    vibe: "Sharp. Cutting. Enjoys watching you squirm." },
-  house:    { level: 8,  name: "Dr. House",       film: "House M.D.",         vibe: "Mocking. Dismissive. \"Everybody lies.\" Full roast energy." },
-  ramsay:   { level: 9,  name: "Gordon Ramsay",   film: "Hell's Kitchen",     vibe: "\"IT'S RAW!\" Profanity unlocked. Brutal but never personal." },
-  thanos:   { level: 10, name: "Thanos",          film: "Avengers",           vibe: "Inevitable. Absolute. Your code doesn't survive the snap." },
+  doug:  { level: 2,  name: "Doug",     vibe: "Chill, normal guy. Useless but harmless. Honest feedback with zero edge." },
+  stu:   { level: 4,  name: "Stu",      vibe: "Anxious, spiraling, tries to be responsible. \"This could go very wrong.\"" },
+  phil:  { level: 6,  name: "Phil",     vibe: "Confident. Bad decisions sound logical. \"Trust me, this is fine.\"" },
+  alan:  { level: 8,  name: "Alan",     vibe: "Absolute chaos. Says insane things with total confidence." },
+  chow:  { level: 10, name: "Mr. Chow", vibe: "Unhinged. Loud. Zero filter. \"But did you die?\"" },
 };
 
 // Reverse lookup: level → character
@@ -679,19 +676,16 @@ ${c.bold("Commands:")}
   ${c.cyan("brutal upgrade")}        Check for CLI updates
 
 ${c.bold("Characters:")} ${c.dim("(use --as <name> to pick a reviewer personality)")}
-  ${c.cyan("baymax")}    Level 1   Gentle, caring         ${c.dim("Big Hero 6")}
-  ${c.cyan("alfred")}    Level 2   Professional, calm     ${c.dim("The Dark Knight")}
-  ${c.cyan("spock")}     Level 4   Logical, emotionless   ${c.dim("Star Trek")}
-  ${c.cyan("miranda")}   Level 5   Sarcastic, impatient   ${c.dim("Devil Wears Prada")}
-  ${c.cyan("loki")}      Level 6   Sharp, cutting         ${c.dim("Thor")}
-  ${c.cyan("house")}     Level 8   Mocking, dismissive    ${c.dim("House M.D.")}
-  ${c.cyan("ramsay")}    Level 9   Profanity unlocked     ${c.dim("Hell's Kitchen")}
-  ${c.cyan("thanos")}    Level 10  Inevitable, absolute   ${c.dim("Avengers")}
+  ${c.cyan("doug")}     Level 1-2   Chill, normal, useless
+  ${c.cyan("stu")}      Level 3-4   Anxious, spiraling, tries to be responsible
+  ${c.cyan("phil")}     Level 5-6   Confident, bad decisions sound logical
+  ${c.cyan("alan")}     Level 7-8   Absolute chaos, says insane things with confidence
+  ${c.cyan("chow")}     Level 9-10  Unhinged, loud, zero filter
 
 ${c.bold("Examples:")}
-  brutal use code-reviewer --as ramsay
-  brutal use code-reviewer --as spock
-  git diff | brutal use code-reviewer --as house
+  brutal use code-reviewer --as chow
+  brutal use code-reviewer --as phil
+  git diff | brutal use code-reviewer --as alan
   brutal install --project
   brutal export cursor
       `);
