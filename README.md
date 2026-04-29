@@ -35,14 +35,33 @@ Every skill stays on the **work**, not the **person**. Hard limits are baked in.
 
 ## Install
 
-Get started instantly with the interactive CLI:
+### Option 1: Run directly (no install needed)
 
 ```bash
-# Initialize your environment and install recommended skills
-npx brutal-claude-skills init
+npx brutal-claude-skills@latest init
+```
 
-# See all available commands
-npx brutal-claude-skills help
+> **⚠️ Always use `@latest`** — `npx` caches old versions aggressively. Without `@latest`, you may get a stale version.
+
+### Option 2: Install globally (recommended)
+
+```bash
+npm install -g brutal-claude-skills
+
+# Now you can just type:
+brutal init
+brutal help
+```
+
+### Option 3: Local development
+
+```bash
+git clone https://github.com/premdevai/brutal-claude-skills.git
+cd brutal-claude-skills
+npm link
+
+# "brutal" command now points to your local code
+brutal init
 ```
 
 Skills install to `~/.claude/skills/` by default (the directory Claude Code reads from).
