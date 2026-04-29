@@ -182,33 +182,237 @@ function exportSkill(skillName, exportTarget, outPath) {
 
 // ── Commands ──────────────────────────────────────────────────────────
 
+// ── Interactive Selector (zero-dep arrow-key UI) ─────────────────────
+
+function arrowSelect(prompt, options) {
+  return new Promise((resolve) => {
+    let selected = 0;
+    const { stdin, stdout } = process;
+
+    function render() {
+      // Move cursor up to clear previous render (except first time)
+      stdout.write(`\x1b[${options.length + 1}A`);
+      stdout.write(`\x1b[0J`); // clear from cursor down
+      stdout.write(`${prompt}\n`);
+      options.forEach((opt, i) => {
+        const pointer = i === selected ? c.cyan("❯") : " ";
+        const label = i === selected ? c.cyan(c.bold(opt.label)) : ` ${opt.label}`;
+        const desc = opt.desc ? c.dim(` — ${opt.desc}`) : "";
+        stdout.write(`  ${pointer} ${label}${desc}\n`);
+      });
+    }
+
+    // Print initial spacer lines so the first render can overwrite
+    stdout.write(`${prompt}\n`);
+    options.forEach(() => stdout.write("\n"));
+
+    // Now render the actual content
+    render();
+
+    if (!stdin.isTTY) {
+      // Non-interactive — just pick the first option
+      resolve(options[0]);
+      return;
+    }
+
+    stdin.setRawMode(true);
+    stdin.resume();
+    stdin.setEncoding("utf8");
+
+    function onKey(key) {
+      if (key === "\x1b[A") { // Up arrow
+        selected = (selected - 1 + options.length) % options.length;
+        render();
+      } else if (key === "\x1b[B") { // Down arrow
+        selected = (selected + 1) % options.length;
+        render();
+      } else if (key === "\r" || key === "\n") { // Enter
+        stdin.setRawMode(false);
+        stdin.pause();
+        stdin.removeListener("data", onKey);
+        resolve(options[selected]);
+      } else if (key === "\x03") { // Ctrl+C
+        stdin.setRawMode(false);
+        stdout.write("\n");
+        process.exit(0);
+      }
+    }
+
+    stdin.on("data", onKey);
+  });
+}
+
+function confirmPrompt(question, defaultYes = true) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const hint = defaultYes ? "Y/n" : "y/N";
+    rl.question(`${question} ${c.dim(`(${hint})`)} `, (answer) => {
+      rl.close();
+      const a = answer.trim().toLowerCase();
+      if (a === "") resolve(defaultYes);
+      else resolve(a === "y" || a === "yes");
+    });
+  });
+}
+
+// ── Init Flow ────────────────────────────────────────────────────────
+
+const INIT_CATEGORIES = [
+  {
+    label: "⚡ Code & Engineering",
+    desc: "Reviews, architecture, commits, web vitals",
+    pack: "engineering",
+  },
+  {
+    label: "✍️  Writing & Docs",
+    desc: "Prose, READMEs, emails, copy",
+    pack: "writing",
+  },
+  {
+    label: "🧠 Strategy & Thinking",
+    desc: "Devil's advocate, pre-mortems, BS detection",
+    pack: "strategy",
+  },
+  {
+    label: "🚀 Career Growth",
+    desc: "Resumes, interviews, pitches",
+    pack: "career",
+  },
+  {
+    label: "🎭 Fun / Roast",
+    desc: "Pure chaos. You asked for this.",
+    pack: "fun",
+  },
+  {
+    label: "💀 Everything",
+    desc: "Install all 17 skills. No mercy.",
+    pack: "_all",
+  },
+];
+
 async function runInit() {
-  console.log(`\n🔥 ${c.bold("brutal")} v${PKG.version} — no sugar, all signal\n`);
-  
-  // Create project dir
   const projectDir = getProjectTarget();
+
+  // ── Step 1: Welcome ────────────────────────────────────────────────
+  const banner = `
+${c.cyan("╔══════════════════════════════════════════════════════════════╗")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("║")}   ${c.bold("██████╗ ██████╗ ██╗   ██╗████████╗ █████╗ ██╗")}              ${c.cyan("║")}
+${c.cyan("║")}   ${c.bold("██╔══██╗██╔══██╗██║   ██║╚══██╔══╝██╔══██╗██║")}              ${c.cyan("║")}
+${c.cyan("║")}   ${c.bold("██████╔╝██████╔╝██║   ██║   ██║   ███████║██║")}              ${c.cyan("║")}
+${c.cyan("║")}   ${c.bold("██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══██║██║")}              ${c.cyan("║")}
+${c.cyan("║")}   ${c.bold("██████╔╝██║  ██║╚██████╔╝   ██║   ██║  ██║███████╗")}         ${c.cyan("║")}
+${c.cyan("║")}   ${c.bold("╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚══════╝")}         ${c.cyan("║")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("║")}        ${c.bold("██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗")}      ${c.cyan("║")}
+${c.cyan("║")}       ${c.bold("██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝")}      ${c.cyan("║")}
+${c.cyan("║")}       ${c.bold("██║     ██║     ███████║██║   ██║██║  ██║█████╗")}        ${c.cyan("║")}
+${c.cyan("║")}       ${c.bold("██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝")}        ${c.cyan("║")}
+${c.cyan("║")}       ${c.bold("╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗")}      ${c.cyan("║")}
+${c.cyan("║")}        ${c.bold("╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝")}      ${c.cyan("║")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("║")}              ${c.bold("S K I L L S   I N I T I A L I Z E D")}             ${c.cyan("║")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("║")}   ${c.dim("> Loading personas...")}                                      ${c.cyan("║")}
+${c.cyan("║")}     ${c.green("■")}${c.dim("□□□□")} Doug        ${c.dim('– "looks fine, ship it?"')}             ${c.cyan("║")}
+${c.cyan("║")}     ${c.green("■■")}${c.dim("□□□")} Stu         ${c.dim("– overthinking intensifies")}           ${c.cyan("║")}
+${c.cyan("║")}     ${c.green("■■■")}${c.dim("□□")} Phil        ${c.dim("– bad ideas, great confidence")}        ${c.cyan("║")}
+${c.cyan("║")}     ${c.green("■■■■")}${c.dim("□")} Alan        ${c.dim("– chaos is a feature")}                 ${c.cyan("║")}
+${c.cyan("║")}     ${c.green("■■■■■")} Mr. Chow   ${c.dim("– prepare yourself")}                  ${c.cyan("║")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("║")}   > Brutality Level: ${c.bold("7")} (Alan)                                ${c.cyan("║")}
+${c.cyan("║")}   > Safety Rails: ${c.green("ON")} ${c.dim("(barely)")}                                ${c.cyan("║")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("║")}   ${c.yellow("⚠")} Your code will be judged.                                ${c.cyan("║")}
+${c.cyan("║")}   ${c.yellow("⚠")} Your feelings are optional.                              ${c.cyan("║")}
+${c.cyan("║")}                                                              ${c.cyan("║")}
+${c.cyan("╚══════════════════════════════════════════════════════════════╝")}`;
+
+  console.log(banner);
+  console.log("");
+
+  // Non-interactive fallback (piped mode)
+  if (!process.stdin.isTTY) {
+    console.log(`  Non-interactive mode detected. Installing engineering pack.\n`);
+    if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
+    for (const s of PACKS.engineering.skills) {
+      copyDirSync(path.join(SKILLS_DIR, s), path.join(projectDir, s));
+    }
+    console.log(`  ✔ Installed ${PACKS.engineering.skills.length} skills to ${c.cyan(projectDir)}\n`);
+    return;
+  }
+
+  // ── Step 2: Category Selection ─────────────────────────────────────
+  const choice = await arrowSelect(
+    `  ${c.bold("What do you want to get brutal about?")}`,
+    INIT_CATEGORIES
+  );
+
+  console.log("");
+
+  // ── Step 3: Show Pack & Confirm ────────────────────────────────────
+  let skillsToInstall = [];
+  let packLabel = "";
+
+  if (choice.pack === "_all") {
+    skillsToInstall = skills; // all skills
+    packLabel = "everything";
+  } else {
+    const pack = PACKS[choice.pack];
+    skillsToInstall = pack.skills;
+    packLabel = choice.pack;
+  }
+
+  console.log(`  ${c.bold("Pack:")} ${packLabel} ${c.dim(`(${skillsToInstall.length} skills)`)}`);
+  console.log("");
+  skillsToInstall.forEach(s => {
+    const display = s.replace(/^brutal-/, "");
+    console.log(`    ${c.green("◆")} ${display}`);
+  });
+  console.log("");
+  console.log(`  ${c.dim("We'll install the essentials. You can get fancy later.")}`);
+  console.log("");
+
+  const confirmed = await confirmPrompt(`  ${c.bold("Install?")}`, true);
+
+  if (!confirmed) {
+    console.log(`\n  ${c.dim("Nothing installed. Run")} ${c.cyan("brutal init")} ${c.dim("when you're ready.")}\n`);
+    return;
+  }
+
+  // ── Step 4: Install ────────────────────────────────────────────────
+  console.log("");
   if (!fs.existsSync(projectDir)) {
     fs.mkdirSync(projectDir, { recursive: true });
   }
-  
-  console.log(`✔ Created ${c.cyan(".claude/skills/")}\n`);
-  
-  // Install recommended pack (engineering)
-  console.log(`Installing recommended pack (engineering)...`);
-  for (const s of PACKS.engineering.skills) {
+
+  for (const s of skillsToInstall) {
     copyDirSync(path.join(SKILLS_DIR, s), path.join(projectDir, s));
-    console.log(`  ✔ ${s}`);
   }
-  
-  console.log(`\n✔ Default brutality: 7 (Savage)\n`);
-  console.log(`${c.dim("────────────────────────────────────")}\n`);
-  console.log(`You're ready.\n`);
-  console.log(`Try this in Claude Code:`);
-  console.log(`→ "Review my last commit brutally"\n`);
-  console.log(`Or set up auto-reviews (highly recommended):`);
-  console.log(`→ ${c.cyan("brutal hook github")}  ${c.dim("(Auto-review PRs)")}`);
-  console.log(`→ ${c.cyan("brutal hook git")}     ${c.dim("(Local pre-commit checks)")}\n`);
-  console.log(`Run \`${c.cyan("brutal doctor")}\` if something feels off.\n`);
+
+  // ── Step 5: Final Confirmation ─────────────────────────────────────
+  const ch = characterForLevel(7);
+  console.log(c.dim("────────────────────────────────────────────────────"));
+  console.log("");
+  console.log(`  ${c.green("✔")} ${c.bold(`${skillsToInstall.length} skills installed`)}`);
+  console.log(`  ${c.dim("Location:")} ${c.cyan(projectDir)}`);
+  console.log(`  ${c.dim("Default:")}  ${ch.name} mode (Level 7)`);
+  console.log("");
+  console.log(c.dim("────────────────────────────────────────────────────"));
+  console.log("");
+  console.log(`  ${c.bold("Try it now:")}`);
+  console.log("");
+  console.log(`    ${c.cyan("brutal use code-reviewer --as alan")}`);
+  console.log(`    ${c.dim("# or pipe a diff directly:")}`);
+  console.log(`    ${c.cyan("git diff | brutal use code-reviewer --as chow")}`);
+  console.log("");
+  console.log(`  ${c.bold("Set up auto-reviews")} ${c.dim("(recommended):")}`);
+  console.log("");
+  console.log(`    ${c.cyan("brutal hook github")}  ${c.dim("Auto-review every PR")}`);
+  console.log(`    ${c.cyan("brutal hook git")}     ${c.dim("Pre-commit checks")}`);
+  console.log("");
+  console.log(`  ${c.dim("Something feel off?")} ${c.cyan("brutal doctor")}`);
+  console.log("");
 }
 
 async function runInstall(args) {
