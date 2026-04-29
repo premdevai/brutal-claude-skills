@@ -31,6 +31,30 @@ const c = {
   gray: (s) => format("90", s),
 };
 
+// ── Characters ────────────────────────────────────────────────────────
+// Iconic characters mapped to brutality levels for instant recognition
+const CHARACTERS = {
+  baymax:   { level: 1,  name: "Baymax",          film: "Big Hero 6",         vibe: "Gentle. Caring. \"I am satisfied with my care.\" Honest but warm." },
+  alfred:   { level: 2,  name: "Alfred",          film: "The Dark Knight",    vibe: "Professional. Calm. The voice of reason in a quiet 1:1." },
+  spock:    { level: 4,  name: "Spock",           film: "Star Trek",          vibe: "Logical. Emotionless. \"That is illogical.\" No feelings, just facts." },
+  miranda:  { level: 5,  name: "Miranda Priestly", film: "Devil Wears Prada", vibe: "Sarcastic. Impatient. \"Is there some reason my coffee isn't here?\"" },
+  loki:     { level: 6,  name: "Loki",            film: "Thor / Avengers",    vibe: "Sharp. Cutting. Enjoys watching you squirm." },
+  house:    { level: 8,  name: "Dr. House",       film: "House M.D.",         vibe: "Mocking. Dismissive. \"Everybody lies.\" Full roast energy." },
+  ramsay:   { level: 9,  name: "Gordon Ramsay",   film: "Hell's Kitchen",     vibe: "\"IT'S RAW!\" Profanity unlocked. Brutal but never personal." },
+  thanos:   { level: 10, name: "Thanos",          film: "Avengers",           vibe: "Inevitable. Absolute. Your code doesn't survive the snap." },
+};
+
+// Reverse lookup: level → character
+function characterForLevel(lvl) {
+  const n = Math.min(10, Math.max(0, lvl));
+  const sorted = Object.values(CHARACTERS).sort((a, b) => a.level - b.level);
+  let best = sorted[0];
+  for (const ch of sorted) {
+    if (ch.level <= n) best = ch;
+  }
+  return best;
+}
+
 const CATEGORIES = {
   "CRITICS": [
     "brutal-code-reviewer",
@@ -429,6 +453,19 @@ async function runUse(args) {
   if (levelIdx !== -1 && args[levelIdx+1]) {
     level = parseInt(args[levelIdx+1], 10);
   }
+
+  // --as <character> flag overrides level
+  const asIdx = args.findIndex(a => a === "--as");
+  if (asIdx !== -1 && args[asIdx+1]) {
+    const charKey = args[asIdx+1].toLowerCase();
+    if (CHARACTERS[charKey]) {
+      level = CHARACTERS[charKey].level;
+    } else {
+      console.error(c.red(`\n✗ Unknown character: ${args[asIdx+1]}`));
+      console.error(`  Available: ${Object.keys(CHARACTERS).join(", ")}\n`);
+      return;
+    }
+  }
   
   const { getSkill, getSkillMetadata } = require("../index");
   const meta = getSkillMetadata(skillName);
@@ -456,7 +493,8 @@ async function runUse(args) {
     output: process.stdout
   });
   
-  console.log(`\n🧨 ${c.bold(skillName)} (level ${level})\n`);
+  const ch = characterForLevel(level);
+  console.log(`\n🧨 ${c.bold(skillName)} as ${c.cyan(ch.name)} (level ${level})\n`);
   console.log(`Paste your code / input below:`);
   console.log(`${c.dim("(press Ctrl+D when done)")}\n`);
   
@@ -481,16 +519,10 @@ function executeClaudeCLI(skillName, level, promptText, inputData) {
   
   fs.writeFileSync(tmpPath, fullPrompt, "utf8");
   
-  const levelNames = {
-    0: "Cool", 1: "Cool", 2: "Cool",
-    3: "Blunt", 4: "Blunt",
-    5: "Harsh", 6: "Harsh",
-    7: "Savage", 8: "Savage",
-    9: "Nuclear", 10: "Nuclear"
-  };
-  const vibe = levelNames[level] || "Savage";
+  const ch = characterForLevel(level);
   
-  console.log(`\n🧨 ${c.bold("Brutal Review")} — Level ${level} (${vibe})\n`);
+  console.log(`\n🧨 ${c.bold("Brutal Review")} — ${c.cyan(ch.name)} mode (Level ${level})`);
+  console.log(`${c.dim(`"${ch.vibe}"`)}\n`);
   
   // Try to use claude CLI if available
   try {
@@ -646,10 +678,21 @@ ${c.bold("Commands:")}
   ${c.cyan("brutal export")}         Export to Cursor/Copilot
   ${c.cyan("brutal upgrade")}        Check for CLI updates
 
+${c.bold("Characters:")} ${c.dim("(use --as <name> to pick a reviewer personality)")}
+  ${c.cyan("baymax")}    Level 1   Gentle, caring         ${c.dim("Big Hero 6")}
+  ${c.cyan("alfred")}    Level 2   Professional, calm     ${c.dim("The Dark Knight")}
+  ${c.cyan("spock")}     Level 4   Logical, emotionless   ${c.dim("Star Trek")}
+  ${c.cyan("miranda")}   Level 5   Sarcastic, impatient   ${c.dim("Devil Wears Prada")}
+  ${c.cyan("loki")}      Level 6   Sharp, cutting         ${c.dim("Thor")}
+  ${c.cyan("house")}     Level 8   Mocking, dismissive    ${c.dim("House M.D.")}
+  ${c.cyan("ramsay")}    Level 9   Profanity unlocked     ${c.dim("Hell's Kitchen")}
+  ${c.cyan("thanos")}    Level 10  Inevitable, absolute   ${c.dim("Avengers")}
+
 ${c.bold("Examples:")}
+  brutal use code-reviewer --as ramsay
+  brutal use code-reviewer --as spock
+  git diff | brutal use code-reviewer --as house
   brutal install --project
-  brutal use code-reviewer --level 10
-  git diff | brutal use code-reviewer
   brutal export cursor
       `);
       break;
