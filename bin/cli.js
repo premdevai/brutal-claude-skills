@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * 💥 brutal-claude-skills v1 CLI
+ * 💥 brutal-review v1 CLI
  * No sugar, all signal.
  */
 
@@ -311,8 +311,11 @@ const INIT_CATEGORIES = [
 async function runInit() {
   const projectDir = getProjectTarget();
 
+  const args = process.argv.slice(2);
+  const forceAscii = args.includes("--force-ascii");
+
   // ── Step 1: Welcome ────────────────────────────────────────────────
-  if (!BRUTAL_CONFIG.hasSeenOnboarding || BRUTAL_CONFIG.asciiMode === "chaos") {
+  if (forceAscii || (!BRUTAL_CONFIG.hasSeenOnboarding && BRUTAL_CONFIG.asciiMode !== "off")) {
     const banner = `
   ${c.cyan("██████╗ ██████╗ ██╗   ██╗████████╗ █████╗ ██╗     ")}
   ${c.cyan("██╔══██╗██╔══██╗██║   ██║╚══██╔══╝██╔══██╗██║     ")}
@@ -322,9 +325,10 @@ async function runInit() {
   ${c.cyan("╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚══════╝")}
 `;
     console.log(banner);
+    console.log(`  ${c.dim("brutal — adversarial skills loaded")}\n`);
     BRUTAL_CONFIG.hasSeenOnboarding = true;
     saveConfig(BRUTAL_CONFIG);
-  } else if (BRUTAL_CONFIG.asciiMode !== "off") {
+  } else {
     console.log(`\n  ${c.dim("brutal init")}\n`);
   }
 
@@ -425,6 +429,35 @@ async function runInit() {
   console.log("");
   console.log(`  ${c.dim("Something feel off?")} ${c.cyan("brutal doctor")}`);
   console.log("");
+
+  // ── Step 6: Post-Install PATH Check ────────────────────────────────
+  try {
+    execSync('command -v brutal', { stdio: 'ignore' });
+  } catch (e) {
+    console.log(`  ${c.yellow("⚠")} ${c.bold("brutal")} command not found in PATH.`);
+    console.log(`  To fix this, you can install globally:`);
+    console.log(`    ${c.cyan("npm i -g brutal-review")}`);
+    console.log(`  Or use npx instead:`);
+    console.log(`    ${c.cyan("npx brutal-review use ...")}\n`);
+    
+    if (process.stdin.isTTY) {
+      const wantAlias = await confirmPrompt(`  Add an alias (brutal="npx brutal-review") to your shell?`, true);
+      if (wantAlias) {
+        const shell = process.env.SHELL || '';
+        let rcFile = '';
+        if (shell.includes('zsh')) rcFile = path.join(process.env.HOME || process.env.USERPROFILE || '', '.zshrc');
+        else if (shell.includes('bash')) rcFile = path.join(process.env.HOME || process.env.USERPROFILE || '', '.bashrc');
+        
+        if (rcFile && fs.existsSync(rcFile)) {
+          fs.appendFileSync(rcFile, '\n# Brutal Review Alias\nalias brutal="npx brutal-review"\n');
+          console.log(`  ${c.green("✔")} Added alias to ${rcFile}`);
+          console.log(`  Run ${c.cyan(`source ${rcFile}`)} or restart your terminal.\n`);
+        } else {
+          console.log(`  ${c.red("✗")} Could not detect shell config file. Please add manually:\n  alias brutal="npx brutal-review"\n`);
+        }
+      }
+    }
+  }
 }
 
 async function runInstall(args) {
@@ -814,7 +847,7 @@ jobs:
       - name: Run Brutal Review
         run: |
           git diff origin/\${{ github.base_ref }} > diff.txt
-          npx brutal-claude-skills use code-reviewer --level 8 < diff.txt > review.txt || echo "No diff found"
+          npx brutal-review use code-reviewer --level 8 < diff.txt > review.txt || echo "No diff found"
 
       - name: Comment on PR
         uses: actions/github-script@v7
@@ -846,7 +879,7 @@ jobs:
     const preCommitContent = `#!/bin/sh
 # brutal pre-commit hook
 echo "🧨 Running Brutal Pre-commit Check..."
-git diff --cached | npx brutal-claude-skills use code-reviewer --level 6
+git diff --cached | npx brutal-review use code-reviewer --level 6
 `;
     fs.writeFileSync(preCommitPath, preCommitContent, "utf8");
     fs.chmodSync(preCommitPath, "755");
@@ -1018,7 +1051,7 @@ ${c.bold("Mid-session overrides:")}
 
 ${c.bold("Examples:")}
   brutal use code-reviewer --persona chow
-  brutal use code-reviewer --level 10
+  npx brutal-review use code-reviewer --level 10
   git diff | brutal use code-reviewer --persona alan
   brutal install --project
   brutal export cursor
