@@ -1,0 +1,36 @@
+name: Brutal Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  brutal-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get PR diff
+        run: git fetch origin ${{ github.base_ref }}
+
+      - name: Run Brutal Review
+        run: |
+          git diff origin/${{ github.base_ref }} > diff.txt
+          npx brutal-claude-skills use code-reviewer --level 8 < diff.txt > review.txt || echo "No diff found"
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('review.txt')) {
+              const body = fs.readFileSync('review.txt', 'utf8');
+              if (body.trim()) {
+                github.rest.issues.createComment({
+                  ...context.repo,
+                  issue_number: context.issue.number,
+                  body
+                });
+              }
+            }

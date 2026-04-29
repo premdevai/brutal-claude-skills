@@ -6,14 +6,14 @@
 
 # brutal-claude-skills
 
-**15 no-mercy, adversarial-helpful skills for Claude Code.**
+**17 no-mercy, adversarial-helpful skills for Claude Code.**
 
 Code reviews, roasting, design critiques, devil's advocate, pre-mortems, and more — all designed to make your work better, not your feelings warmer.
 
 [![npm version](https://img.shields.io/npm/v/brutal-claude-skills?style=flat-square&color=cb3837)](https://www.npmjs.com/package/brutal-claude-skills)
 [![npm downloads](https://img.shields.io/npm/dt/brutal-claude-skills?style=flat-square&color=blue)](https://www.npmjs.com/package/brutal-claude-skills)
 [![node](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js&logoColor=white)](./package.json)
-[![skills](https://img.shields.io/badge/skills-15-f59e0b?style=flat-square)](./skills)
+[![skills](https://img.shields.io/badge/skills-17-f59e0b?style=flat-square)](./skills)
 [![zero deps](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](./package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](./CONTRIBUTING.md)
 
@@ -94,10 +94,11 @@ brutal install pack <name>
 
 | Pack | Skills | What it covers |
 | :--- | :---: | :--- |
-| **`engineering`** | 4 | Code reviewer, commit reviewer, design critic, architecture reviewer |
+| **`engineering`** | 5 | Code reviewer, commit reviewer, design critic, architecture reviewer, web vitals reviewer |
 | **`writing`** | 3 | Writing editor, README reviewer, email reviewer |
 | **`strategy`** | 4 | Devil's advocate, pre-mortem, assumption auditor, BS detector |
 | **`career`** | 2 | Resume reviewer, interview prep destroyer |
+| **`growth`** | 4 | SEO reviewer, web vitals reviewer, pitch reviewer, writing editor |
 | **`founder`** | 4 | Pitch reviews, writing, architecture, BS detector |
 | **`fun`** | 1 | Roast mode |
 
@@ -125,12 +126,14 @@ brutal status
 
 ## The Skills
 
-### <img src="https://img.shields.io/badge/CRITICS-9_skills-dc2626?style=flat-square&labelColor=1c1917" alt="Critics" /> — review your work product
+### <img src="https://img.shields.io/badge/CRITICS-11_skills-dc2626?style=flat-square&labelColor=1c1917" alt="Critics" /> — review your work product
 
 | Skill | What it tears apart |
 | :--- | :--- |
 | **`brutal-code-reviewer`** | Code, PRs, diffs — no mercy engineering scrutiny |
 | **`brutal-architecture-reviewer`** | System design, service boundaries, infra decisions |
+| **`brutal-web-vitals-reviewer`** | LCP, INP, CLS, frontend performance |
+| **`brutal-seo-reviewer`** | Semantic HTML, metadata, heading hierarchy, keyword stuffing |
 | **`brutal-writing-editor`** | Essays, blog posts, articles, copy |
 | **`brutal-design-critic`** | UI, UX, landing pages, Figma designs |
 | **`brutal-resume-reviewer`** | Resumes, CVs, cover letters, LinkedIn profiles |

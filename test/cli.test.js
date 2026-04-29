@@ -62,11 +62,11 @@ describe("list", () => {
     assert.ok(output.includes("Available Skills"), "should show header");
   });
 
-  it("lists at least 13 skills", () => {
+  it("lists at least 17 skills", () => {
     const dirs = fs
       .readdirSync(SKILLS_DIR, { withFileTypes: true })
       .filter((d) => d.isDirectory());
-    assert.ok(dirs.length >= 13, `Expected >= 13 skills, got ${dirs.length}`);
+    assert.ok(dirs.length >= 17, `Expected >= 17 skills, got ${dirs.length}`);
   });
 });
 

@@ -41,6 +41,8 @@ const CATEGORIES = {
     "brutal-email-reviewer",
     "brutal-pitch-reviewer",
     "brutal-writing-editor",
+    "brutal-web-vitals-reviewer",
+    "brutal-seo-reviewer",
   ],
   "ADVERSARIAL THINKING": ["devils-advocate", "pre-mortem", "bs-detector", "assumption-auditor"],
   "CAREER & PREP": ["brutal-resume-reviewer", "interview-prep-destroyer"],
@@ -49,8 +51,8 @@ const CATEGORIES = {
 
 const PACKS = {
   engineering: {
-    desc: "Code, architecture, commits, and READMEs",
-    skills: ["brutal-code-reviewer", "brutal-architecture-reviewer", "brutal-commit-message-reviewer", "brutal-readme-reviewer"]
+    desc: "Code, architecture, commits, READMEs, and web vitals",
+    skills: ["brutal-code-reviewer", "brutal-architecture-reviewer", "brutal-commit-message-reviewer", "brutal-readme-reviewer", "brutal-web-vitals-reviewer"]
   },
   strategy: {
     desc: "Pre-mortems, BS detection, assumptions",
@@ -59,6 +61,10 @@ const PACKS = {
   career: {
     desc: "Resume reviews and brutal mock interviews",
     skills: ["brutal-resume-reviewer", "interview-prep-destroyer"]
+  },
+  growth: {
+    desc: "SEO, web vitals, pitches, and copy",
+    skills: ["brutal-seo-reviewer", "brutal-web-vitals-reviewer", "brutal-pitch-reviewer", "brutal-writing-editor"]
   },
   founder: {
     desc: "Pitch reviews, writing, architecture",
