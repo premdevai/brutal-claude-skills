@@ -31,20 +31,60 @@ const c = {
   gray: (s) => format("90", s),
 };
 
-// ── Characters (The Hangover) ───────────────────────────────────────────
-// One franchise. Five characters. Perfectly escalating chaos.
-const CHARACTERS = {
-  doug:  { level: 2,  name: "Doug",     vibe: "Chill, normal guy. Useless but harmless. Honest feedback with zero edge." },
-  stu:   { level: 4,  name: "Stu",      vibe: "Anxious, spiraling, tries to be responsible. \"This could go very wrong.\"" },
-  phil:  { level: 6,  name: "Phil",     vibe: "Confident. Bad decisions sound logical. \"Trust me, this is fine.\"" },
-  alan:  { level: 8,  name: "Alan",     vibe: "Absolute chaos. Says insane things with total confidence." },
-  chow:  { level: 10, name: "Mr. Chow", vibe: "Unhinged. Loud. Zero filter. \"But did you die?\"" },
+// ── Config & Persona System ───────────────────────────────────────────
+
+const CONFIG_PATH = path.join(
+  process.env.HOME || process.env.USERPROFILE || "",
+  ".brutal",
+  "config.json"
+);
+
+const DEFAULT_CONFIG = {
+  defaultPersona: "Alan",
+  brutality: 7,
+  hasSeenOnboarding: false,
+  asciiMode: "minimal",
+  personas: {
+    doug:  { level: 2,  name: "Doug",     vibe: "Chill, normal guy. Useless but harmless. Honest feedback with zero edge.", active: true },
+    stu:   { level: 4,  name: "Stu",      vibe: 'Anxious, spiraling, tries to be responsible. "This could go very wrong."', active: true },
+    phil:  { level: 6,  name: "Phil",     vibe: 'Confident. Bad decisions sound logical. "Trust me, this is fine."', active: true },
+    alan:  { level: 8,  name: "Alan",     vibe: "Absolute chaos. Says insane things with total confidence.", active: true },
+    chow:  { level: 10, name: "Mr. Chow", vibe: 'Unhinged. Loud. Zero filter. "But did you die?"', active: true }
+  }
 };
+
+function loadConfig() {
+  if (!fs.existsSync(CONFIG_PATH)) return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  try {
+    const data = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    return { ...DEFAULT_CONFIG, ...data, personas: { ...DEFAULT_CONFIG.personas, ...(data.personas || {}) } };
+  } catch (e) {
+    return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+  }
+}
+
+function saveConfig(config) {
+  const dir = path.dirname(CONFIG_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), "utf8");
+}
+
+let BRUTAL_CONFIG = loadConfig();
+
+function getActivePersonas() {
+  const active = {};
+  for (const [k, v] of Object.entries(BRUTAL_CONFIG.personas)) {
+    if (v.active) active[k] = v;
+  }
+  return active;
+}
 
 // Reverse lookup: level → character
 function characterForLevel(lvl) {
+  const active = getActivePersonas();
   const n = Math.min(10, Math.max(0, lvl));
-  const sorted = Object.values(CHARACTERS).sort((a, b) => a.level - b.level);
+  const sorted = Object.values(active).sort((a, b) => a.level - b.level);
+  if (sorted.length === 0) return { name: "Unknown", level: n, vibe: "No active personas." };
   let best = sorted[0];
   for (const ch of sorted) {
     if (ch.level <= n) best = ch;
@@ -195,10 +235,9 @@ function arrowSelect(prompt, options) {
       stdout.write(`\x1b[0J`); // clear from cursor down
       stdout.write(`${prompt}\n`);
       options.forEach((opt, i) => {
-        const pointer = i === selected ? c.cyan("❯") : " ";
-        const label = i === selected ? c.cyan(c.bold(opt.label)) : ` ${opt.label}`;
-        const desc = opt.desc ? c.dim(` — ${opt.desc}`) : "";
-        stdout.write(`  ${pointer} ${label}${desc}\n`);
+        const pointer = i === selected ? c.cyan("›") : " ";
+        const label = i === selected ? c.cyan(`${i + 1}. ${opt.label}`) : `  ${i + 1}. ${opt.label}`;
+        stdout.write(`  ${pointer} ${label}\n`);
       });
     }
 
@@ -225,6 +264,9 @@ function arrowSelect(prompt, options) {
         render();
       } else if (key === "\x1b[B") { // Down arrow
         selected = (selected + 1) % options.length;
+        render();
+      } else if (key >= "1" && key <= String(options.length)) {
+        selected = parseInt(key, 10) - 1;
         render();
       } else if (key === "\r" || key === "\n") { // Enter
         stdin.setRawMode(false);
@@ -258,82 +300,38 @@ function confirmPrompt(question, defaultYes = true) {
 // ── Init Flow ────────────────────────────────────────────────────────
 
 const INIT_CATEGORIES = [
-  {
-    label: "⚡ Code & Engineering",
-    desc: "Reviews, architecture, commits, web vitals",
-    pack: "engineering",
-  },
-  {
-    label: "✍️  Writing & Docs",
-    desc: "Prose, READMEs, emails, copy",
-    pack: "writing",
-  },
-  {
-    label: "🧠 Strategy & Thinking",
-    desc: "Devil's advocate, pre-mortems, BS detection",
-    pack: "strategy",
-  },
-  {
-    label: "🚀 Career Growth",
-    desc: "Resumes, interviews, pitches",
-    pack: "career",
-  },
-  {
-    label: "🎭 Fun / Roast",
-    desc: "Pure chaos. You asked for this.",
-    pack: "fun",
-  },
-  {
-    label: "💀 Everything",
-    desc: "Install all 17 skills. No mercy.",
-    pack: "_all",
-  },
+  { label: "Code & Engineering", pack: "engineering" },
+  { label: "Writing & Docs", pack: "writing" },
+  { label: "Strategy & Thinking", pack: "strategy" },
+  { label: "Career Growth", pack: "career" },
+  { label: "Fun / Roast", pack: "fun" },
+  { label: "Everything", pack: "_all" }
 ];
 
 async function runInit() {
   const projectDir = getProjectTarget();
 
   // ── Step 1: Welcome ────────────────────────────────────────────────
-  const banner = `
-${c.cyan("╔══════════════════════════════════════════════════════════════╗")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("║")}   ${c.bold("██████╗ ██████╗ ██╗   ██╗████████╗ █████╗ ██╗")}              ${c.cyan("║")}
-${c.cyan("║")}   ${c.bold("██╔══██╗██╔══██╗██║   ██║╚══██╔══╝██╔══██╗██║")}              ${c.cyan("║")}
-${c.cyan("║")}   ${c.bold("██████╔╝██████╔╝██║   ██║   ██║   ███████║██║")}              ${c.cyan("║")}
-${c.cyan("║")}   ${c.bold("██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══██║██║")}              ${c.cyan("║")}
-${c.cyan("║")}   ${c.bold("██████╔╝██║  ██║╚██████╔╝   ██║   ██║  ██║███████╗")}         ${c.cyan("║")}
-${c.cyan("║")}   ${c.bold("╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚══════╝")}         ${c.cyan("║")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("║")}        ${c.bold("██████╗██╗      █████╗ ██╗   ██╗██████╗ ███████╗")}      ${c.cyan("║")}
-${c.cyan("║")}       ${c.bold("██╔════╝██║     ██╔══██╗██║   ██║██╔══██╗██╔════╝")}      ${c.cyan("║")}
-${c.cyan("║")}       ${c.bold("██║     ██║     ███████║██║   ██║██║  ██║█████╗")}        ${c.cyan("║")}
-${c.cyan("║")}       ${c.bold("██║     ██║     ██╔══██║██║   ██║██║  ██║██╔══╝")}        ${c.cyan("║")}
-${c.cyan("║")}       ${c.bold("╚██████╗███████╗██║  ██║╚██████╔╝██████╔╝███████╗")}      ${c.cyan("║")}
-${c.cyan("║")}        ${c.bold("╚═════╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝")}      ${c.cyan("║")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("║")}              ${c.bold("S K I L L S   I N I T I A L I Z E D")}             ${c.cyan("║")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("║")}   ${c.dim("> Loading personas...")}                                      ${c.cyan("║")}
-${c.cyan("║")}     ${c.green("■")}${c.dim("□□□□")} Doug        ${c.dim('– "looks fine, ship it?"')}             ${c.cyan("║")}
-${c.cyan("║")}     ${c.green("■■")}${c.dim("□□□")} Stu         ${c.dim("– overthinking intensifies")}           ${c.cyan("║")}
-${c.cyan("║")}     ${c.green("■■■")}${c.dim("□□")} Phil        ${c.dim("– bad ideas, great confidence")}        ${c.cyan("║")}
-${c.cyan("║")}     ${c.green("■■■■")}${c.dim("□")} Alan        ${c.dim("– chaos is a feature")}                 ${c.cyan("║")}
-${c.cyan("║")}     ${c.green("■■■■■")} Mr. Chow   ${c.dim("– prepare yourself")}                  ${c.cyan("║")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("║")}   > Brutality Level: ${c.bold("7")} (Alan)                                ${c.cyan("║")}
-${c.cyan("║")}   > Safety Rails: ${c.green("ON")} ${c.dim("(barely)")}                                ${c.cyan("║")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("║")}   ${c.yellow("⚠")} Your code will be judged.                                ${c.cyan("║")}
-${c.cyan("║")}   ${c.yellow("⚠")} Your feelings are optional.                              ${c.cyan("║")}
-${c.cyan("║")}                                                              ${c.cyan("║")}
-${c.cyan("╚══════════════════════════════════════════════════════════════╝")}`;
-
-  console.log(banner);
-  console.log("");
+  if (!BRUTAL_CONFIG.hasSeenOnboarding || BRUTAL_CONFIG.asciiMode === "chaos") {
+    const banner = `
+  ${c.cyan("██████╗ ██████╗ ██╗   ██╗████████╗ █████╗ ██╗     ")}
+  ${c.cyan("██╔══██╗██╔══██╗██║   ██║╚══██╔══╝██╔══██╗██║     ")}
+  ${c.cyan("██████╔╝██████╔╝██║   ██║   ██║   ███████║██║     ")}
+  ${c.cyan("██╔══██╗██╔══██╗██║   ██║   ██║   ██╔══██║██║     ")}
+  ${c.cyan("██████╔╝██║  ██║╚██████╔╝   ██║   ██║  ██║███████╗")}
+  ${c.cyan("╚═════╝ ╚═╝  ╚═╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝╚══════╝")}
+`;
+    console.log(banner);
+    BRUTAL_CONFIG.hasSeenOnboarding = true;
+    saveConfig(BRUTAL_CONFIG);
+  } else if (BRUTAL_CONFIG.asciiMode !== "off") {
+    console.log(`\n  ${c.dim("brutal init")}\n`);
+  }
 
   // Non-interactive fallback (piped mode)
   if (!process.stdin.isTTY) {
-    console.log(`  Non-interactive mode detected. Installing engineering pack.\n`);
+    console.log(`  loading personas... done`);
+    console.log(`  config loaded (brutality: ${BRUTAL_CONFIG.brutality})\n`);
     if (!fs.existsSync(projectDir)) fs.mkdirSync(projectDir, { recursive: true });
     for (const s of PACKS.engineering.skills) {
       copyDirSync(path.join(SKILLS_DIR, s), path.join(projectDir, s));
@@ -342,9 +340,23 @@ ${c.cyan("╚══════════════════════�
     return;
   }
 
+  console.log(`  loading personas... done`);
+  console.log(`  config loaded (brutality: ${BRUTAL_CONFIG.brutality})\n`);
+
+  console.log(`  ${c.dim("personas:")}`);
+  const activePersonas = getActivePersonas();
+  Object.values(activePersonas).forEach(p => {
+    console.log(`    ${c.dim("-")} ${p.name.padEnd(8)} ${c.dim(`(lvl ${p.level})`)}`);
+  });
+  console.log("");
+
+  console.log(`  ${c.yellow("warning:")}`);
+  console.log(`    Your code will be judged.`);
+  console.log(`    Your feelings are optional.\n`);
+
   // ── Step 2: Category Selection ─────────────────────────────────────
   const choice = await arrowSelect(
-    `  ${c.bold("What do you want to get brutal about?")}`,
+    `  What do you want to get brutal about?`,
     INIT_CATEGORIES
   );
 
@@ -649,21 +661,23 @@ async function runUse(args) {
     return;
   }
   
-  let level = 7;
+  let level = BRUTAL_CONFIG.brutality || 7;
   const levelIdx = args.findIndex(a => a === "--level");
   if (levelIdx !== -1 && args[levelIdx+1]) {
     level = parseInt(args[levelIdx+1], 10);
   }
 
-  // --as <character> flag overrides level
+  // --persona <character> flag overrides level
+  const personaIdx = args.findIndex(a => a === "--persona");
   const asIdx = args.findIndex(a => a === "--as");
-  if (asIdx !== -1 && args[asIdx+1]) {
-    const charKey = args[asIdx+1].toLowerCase();
-    if (CHARACTERS[charKey]) {
-      level = CHARACTERS[charKey].level;
+  const pIdx = personaIdx !== -1 ? personaIdx : asIdx;
+  if (pIdx !== -1 && args[pIdx+1]) {
+    const charKey = args[pIdx+1].toLowerCase();
+    if (BRUTAL_CONFIG.personas[charKey] && BRUTAL_CONFIG.personas[charKey].active) {
+      level = BRUTAL_CONFIG.personas[charKey].level;
     } else {
-      console.error(c.red(`\n✗ Unknown character: ${args[asIdx+1]}`));
-      console.error(`  Available: ${Object.keys(CHARACTERS).join(", ")}\n`);
+      console.error(c.red(`\n✗ Unknown or inactive persona: ${args[pIdx+1]}`));
+      console.error(`  Available: ${Object.keys(getActivePersonas()).join(", ")}\n`);
       return;
     }
   }
@@ -702,6 +716,28 @@ async function runUse(args) {
   let inputData = "";
   
   rl.on('line', (line) => {
+    if (line.trim().startsWith('/persona ')) {
+      const charKey = line.trim().split(' ')[1].toLowerCase();
+      if (BRUTAL_CONFIG.personas[charKey] && BRUTAL_CONFIG.personas[charKey].active) {
+        level = BRUTAL_CONFIG.personas[charKey].level;
+        const ch = characterForLevel(level);
+        console.log(`\n🧨 Switched to ${c.cyan(ch.name)} (level ${level})\n`);
+      } else {
+        console.log(`\n✗ Unknown or inactive persona: ${charKey}\n`);
+      }
+      return;
+    }
+    if (line.trim().startsWith('/level ')) {
+      const newLvl = parseInt(line.trim().split(' ')[1], 10);
+      if (!isNaN(newLvl) && newLvl >= 0 && newLvl <= 10) {
+        level = newLvl;
+        const ch = characterForLevel(level);
+        console.log(`\n🧨 Brutality level set to ${level} (Nearest persona: ${c.cyan(ch.name)})\n`);
+      } else {
+        console.log(`\n✗ Invalid level (must be 0-10).\n`);
+      }
+      return;
+    }
     inputData += line + '\n';
   });
   
@@ -822,6 +858,92 @@ git diff --cached | npx brutal-claude-skills use code-reviewer --level 6
 
 // ── Router ────────────────────────────────────────────────────────────
 
+async function runConfig(args) {
+  const rawArgs = args.filter(a => !a.startsWith("-"));
+  const subcmd = rawArgs[0];
+  
+  if (!subcmd) {
+    console.log(JSON.stringify(BRUTAL_CONFIG, null, 2));
+    return;
+  }
+  
+  if (subcmd === "open") {
+    console.log(`Config located at: ${c.cyan(CONFIG_PATH)}`);
+    return;
+  }
+  
+  if (subcmd === "set" && rawArgs.length === 3) {
+    const key = rawArgs[1];
+    let val = rawArgs[2];
+    
+    if (val === "true") val = true;
+    else if (val === "false") val = false;
+    else if (!isNaN(Number(val))) val = Number(val);
+    
+    BRUTAL_CONFIG[key] = val;
+    saveConfig(BRUTAL_CONFIG);
+    console.log(`  ${c.green("✔")} Set ${key} = ${val}`);
+    return;
+  }
+  
+  console.log(`Usage: brutal config [set <key> <value> | open]`);
+}
+
+async function runPersona(args) {
+  const rawArgs = args.filter(a => !a.startsWith("-"));
+  const subcmd = rawArgs[0];
+  
+  if (subcmd === "list" || !subcmd) {
+    console.log(`\n  ${c.bold("Personas:")}\n`);
+    for (const [key, p] of Object.entries(BRUTAL_CONFIG.personas)) {
+      const status = p.active ? c.cyan("active") : c.dim("inactive");
+      console.log(`    ${c.bold(p.name)} [${key}] - Level ${p.level} - ${status}`);
+      console.log(`    ${c.dim(p.vibe)}\n`);
+    }
+    return;
+  }
+  
+  if (subcmd === "set" && rawArgs.length === 2) {
+    const name = rawArgs[1];
+    if (BRUTAL_CONFIG.personas[name]) {
+      BRUTAL_CONFIG.defaultPersona = name;
+      BRUTAL_CONFIG.brutality = BRUTAL_CONFIG.personas[name].level;
+      saveConfig(BRUTAL_CONFIG);
+      console.log(`  ${c.green("✔")} Default persona set to ${name} (level ${BRUTAL_CONFIG.brutality})`);
+    } else {
+      console.error(`  ${c.red("✗")} Persona not found: ${name}`);
+    }
+    return;
+  }
+  
+  if (subcmd === "toggle" && rawArgs.length === 2) {
+    const name = rawArgs[1];
+    if (BRUTAL_CONFIG.personas[name]) {
+      BRUTAL_CONFIG.personas[name].active = !BRUTAL_CONFIG.personas[name].active;
+      saveConfig(BRUTAL_CONFIG);
+      const state = BRUTAL_CONFIG.personas[name].active ? "active" : "inactive";
+      console.log(`  ${c.green("✔")} Persona ${name} is now ${state}`);
+    } else {
+      console.error(`  ${c.red("✗")} Persona not found: ${name}`);
+    }
+    return;
+  }
+  
+  if (subcmd === "add" && rawArgs.length >= 4) {
+    const key = rawArgs[1];
+    const level = parseInt(rawArgs[2], 10);
+    const name = rawArgs[3];
+    const vibe = rawArgs.slice(4).join(" ") || "No vibe provided.";
+    
+    BRUTAL_CONFIG.personas[key] = { level, name, vibe, active: true };
+    saveConfig(BRUTAL_CONFIG);
+    console.log(`  ${c.green("✔")} Added persona ${name} [${key}] at level ${level}`);
+    return;
+  }
+  
+  console.log(`Usage: brutal persona [list | set <name> | toggle <name> | add <key> <level> <name> [vibe]]`);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0] || "help";
@@ -862,6 +984,12 @@ async function main() {
     case "hook":
       await runHook(cmdArgs);
       break;
+    case "config":
+      await runConfig(cmdArgs);
+      break;
+    case "persona":
+      await runPersona(cmdArgs);
+      break;
     case "help":
     default:
       console.log(`
@@ -872,6 +1000,8 @@ ${c.bold("Commands:")}
   ${c.cyan("brutal install [name]")} Install skills (alias: ${c.dim("i")})
   ${c.cyan("brutal use <skill>")}    Interactive prompt or piped input
   ${c.cyan("brutal hook <target>")}  Auto-review integrations (github, git)
+  ${c.cyan("brutal config <cmd>")}   Manage settings (set, open)
+  ${c.cyan("brutal persona <cmd>")}  Manage personas (list, set, toggle, add)
   ${c.cyan("brutal list")}           List all skills (alias: ${c.dim("ls")})
   ${c.cyan("brutal status")}         Check installed skills (alias: ${c.dim("st")})
   ${c.cyan("brutal remove <name>")}  Remove skills (alias: ${c.dim("rm")})
@@ -879,17 +1009,17 @@ ${c.bold("Commands:")}
   ${c.cyan("brutal export")}         Export to Cursor/Copilot
   ${c.cyan("brutal upgrade")}        Check for CLI updates
 
-${c.bold("Characters:")} ${c.dim("(use --as <name> to pick a reviewer personality)")}
-  ${c.cyan("doug")}     Level 1-2   Chill, normal, useless
-  ${c.cyan("stu")}      Level 3-4   Anxious, spiraling, tries to be responsible
-  ${c.cyan("phil")}     Level 5-6   Confident, bad decisions sound logical
-  ${c.cyan("alan")}     Level 7-8   Absolute chaos, says insane things with confidence
-  ${c.cyan("chow")}     Level 9-10  Unhinged, loud, zero filter
+${c.bold("Characters:")} ${c.dim("(use --persona <name> to pick a reviewer personality)")}
+  Run ${c.cyan("brutal persona list")} to see available personas.
+
+${c.bold("Mid-session overrides:")}
+  ${c.cyan("/persona <name>")}       Switch persona mid-session
+  ${c.cyan("/level <0-10>")}         Adjust brutality level mid-session
 
 ${c.bold("Examples:")}
-  brutal use code-reviewer --as chow
-  brutal use code-reviewer --as phil
-  git diff | brutal use code-reviewer --as alan
+  brutal use code-reviewer --persona chow
+  brutal use code-reviewer --level 10
+  git diff | brutal use code-reviewer --persona alan
   brutal install --project
   brutal export cursor
       `);
