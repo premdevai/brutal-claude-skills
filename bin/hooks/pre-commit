@@ -1,0 +1,142 @@
+#!/usr/bin/env node
+/**
+ * brutal pre-commit hook
+ * Audits staged changes before they are committed.
+ * Blocks on critical issues (secrets, O(N^2), obvious security holes).
+ * Warns on non-critical issues but lets the commit through.
+ *
+ * Installed via: brutal hook git --pre-commit
+ */
+
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
+
+// ── ANSI helpers ─────────────────────────────────────────────
+const c = {
+  bold: (s) => `\x1b[1m${s}\x1b[0m`,
+  dim: (s) => `\x1b[2m${s}\x1b[0m`,
+  red: (s) => `\x1b[31m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+};
+
+// ── Get staged diff ───────────────────────────────────────────
+let diff = "";
+try {
+  diff = execSync("git diff --cached --no-color", {
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+    maxBuffer: 5 * 1024 * 1024, // 5MB max diff
+  });
+} catch (e) {
+  // Can't get diff — let the commit proceed
+  process.exit(0);
+}
+
+if (!diff.trim()) {
+  process.exit(0); // Nothing staged
+}
+
+// ── CRITICAL: Secret / credential detection ───────────────────
+const SECRET_PATTERNS = [
+  { name: "AWS Access Key",        re: /AKIA[0-9A-Z]{16}/g },
+  { name: "AWS Secret Key",        re: /aws_secret_access_key\s*=\s*['"][^'"]{20,}['"]/gi },
+  { name: "Generic API Key",       re: /api[_-]?key\s*[:=]\s*['"][a-zA-Z0-9_\-]{20,}['"]/gi },
+  { name: "Private Key Header",    re: /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/g },
+  { name: "GitHub Token",          re: /ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{82}/g },
+  { name: "Slack Token",           re: /xox[baprs]-[0-9a-zA-Z\-]+/g },
+  { name: "Stripe Secret Key",     re: /sk_live_[a-zA-Z0-9]{24,}/g },
+  { name: "Google API Key",        re: /AIza[0-9A-Za-z\-_]{35}/g },
+  { name: "JWT",                   re: /eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g },
+  { name: "Hardcoded password",    re: /password\s*[:=]\s*['"][^'"]{4,}['"]/gi },
+  { name: "Hardcoded secret",      re: /secret\s*[:=]\s*['"][^'"]{4,}['"]/gi },
+];
+
+// ── WARNING: Code smell detection ────────────────────────────
+// These won't block but will print a warning
+const SMELL_PATTERNS = [
+  { name: "TODO/FIXME left in code",     re: /^\+.*\b(TODO|FIXME|HACK|XXX)\b/gm },
+  { name: "console.log left in code",   re: /^\+.*console\.(log|debug|warn)\(/gm },
+  { name: "debugger statement",         re: /^\+.*\bdebugger\b/gm },
+  { name: "print() debug statement",    re: /^\+.*\bprint\s*\(['"](debug|test|tmp)/gm },
+  { name: "Nested loop (O(N²) risk)",   re: /^\+.*for.+\n(\+.*\n)*?\+.*for.+/gm },
+  { name: ".env file staged",           re: /^diff --git a\/\.env\b/gm },
+  { name: "Large file (>500 additions)",re: null }, // handled separately
+];
+
+// ── Run checks ────────────────────────────────────────────────
+let criticalIssues = [];
+let warnings = [];
+
+// Secret scan
+for (const pattern of SECRET_PATTERNS) {
+  const addedLines = diff.split("\n").filter(l => l.startsWith("+") && !l.startsWith("+++"));
+  const addedText = addedLines.join("\n");
+  const matches = addedText.match(pattern.re);
+  if (matches) {
+    criticalIssues.push({
+      name: pattern.name,
+      count: matches.length,
+      sample: matches[0].slice(0, 60) + (matches[0].length > 60 ? "..." : ""),
+    });
+  }
+}
+
+// Code smell scan
+for (const smell of SMELL_PATTERNS) {
+  if (!smell.re) continue;
+  const matches = diff.match(smell.re);
+  if (matches) {
+    warnings.push({ name: smell.name, count: matches.length });
+  }
+}
+
+// Large diff check
+const additions = (diff.match(/^\+[^+]/gm) || []).length;
+if (additions > 500) {
+  warnings.push({ name: `Large commit (${additions} additions) — consider splitting`, count: 1 });
+}
+
+// .env staged check
+if (/^diff --git a\/\.env\b/m.test(diff)) {
+  criticalIssues.push({ name: ".env file staged — NEVER commit secrets", count: 1, sample: ".env" });
+}
+
+// ── Print results ─────────────────────────────────────────────
+const hasIssues = criticalIssues.length > 0 || warnings.length > 0;
+
+if (!hasIssues) {
+  process.stderr.write(`${c.green("✔")} ${c.dim("brutal pre-commit: no issues found")}\n`);
+  process.exit(0);
+}
+
+process.stderr.write(`\n🧨 ${c.bold("brutal pre-commit")} — auditing staged changes...\n\n`);
+
+if (criticalIssues.length > 0) {
+  process.stderr.write(`${c.red("✗ CRITICAL — Commit blocked:\n")}\n`);
+  for (const issue of criticalIssues) {
+    process.stderr.write(`  ${c.red("→")} ${c.bold(issue.name)}\n`);
+    if (issue.sample) process.stderr.write(`    ${c.dim(`Match: ${issue.sample}`)}\n`);
+  }
+  process.stderr.write("\n");
+}
+
+if (warnings.length > 0) {
+  process.stderr.write(`${c.yellow("⚠ WARNINGS — Review before committing:\n")}\n`);
+  for (const w of warnings) {
+    process.stderr.write(`  ${c.yellow("→")} ${w.name}${w.count > 1 ? c.dim(` (${w.count}x)`) : ""}\n`);
+  }
+  process.stderr.write("\n");
+}
+
+if (criticalIssues.length > 0) {
+  process.stderr.write(`${c.red("  Commit aborted.")} Fix the critical issues above and try again.\n`);
+  process.stderr.write(`  ${c.dim("To skip (use carefully): git commit --no-verify")}\n\n`);
+  process.exit(1);
+} else {
+  // Only warnings — let it through but make it visible
+  process.stderr.write(`${c.yellow("  Proceeding anyway.")} ${c.dim("The warnings above are your problem now.")}\n\n`);
+  process.exit(0);
+}

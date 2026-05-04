@@ -12,7 +12,9 @@ const { execSync } = require("child_process");
 
 // We'll require the core logic later, but for now let's set up the router.
 const SKILLS_DIR = path.join(__dirname, "..", "skills");
+const HOOKS_DIR = path.join(__dirname, "hooks");
 const PKG = require("../package.json");
+const NPM_PKG = PKG.name;
 const DEFAULT_TARGET = path.join(
   process.env.HOME || process.env.USERPROFILE || "",
   ".claude",
@@ -94,6 +96,7 @@ function characterForLevel(lvl) {
 
 const CATEGORIES = {
   "CRITICS": [
+    "code-quality-review",
     "brutal-code-reviewer",
     "brutal-architecture-reviewer",
     "brutal-design-critic",
@@ -113,7 +116,7 @@ const CATEGORIES = {
 const PACKS = {
   engineering: {
     desc: "Code, architecture, commits, READMEs, and web vitals",
-    skills: ["brutal-code-reviewer", "brutal-architecture-reviewer", "brutal-commit-message-reviewer", "brutal-readme-reviewer", "brutal-web-vitals-reviewer"]
+    skills: ["code-quality-review", "brutal-code-reviewer", "brutal-architecture-reviewer", "brutal-commit-message-reviewer", "brutal-readme-reviewer", "brutal-web-vitals-reviewer"]
   },
   strategy: {
     desc: "Pre-mortems, BS detection, assumptions",
@@ -424,8 +427,8 @@ async function runInit() {
   console.log("");
   console.log(`  ${c.bold("Set up auto-reviews")} ${c.dim("(recommended):")}`);
   console.log("");
-  console.log(`    ${c.cyan("brutal hook github")}  ${c.dim("Auto-review every PR")}`);
-  console.log(`    ${c.cyan("brutal hook git")}     ${c.dim("Pre-commit checks")}`);
+  console.log(`    ${c.cyan("brutal hook git --all")}    ${c.dim("commit-msg + pre-commit + pre-push")}`);
+  console.log(`    ${c.cyan("brutal hook github")}       ${c.dim("Auto-review every PR (GitHub Actions)")}`);
   console.log("");
   console.log(`  ${c.dim("Something feel off?")} ${c.cyan("brutal doctor")}`);
   console.log("");
@@ -813,80 +816,271 @@ function executeClaudeCLI(skillName, level, promptText, inputData) {
 
 // ── Integrations (Hooks) ──────────────────────────────────────────────
 
-async function runHook(args) {
-  const rawArgs = args.filter(a => !a.startsWith("-"));
-  const target = rawArgs[0];
+// Written into every installed hook so we can detect and manage our own hooks
+const BRUTAL_HOOK_SENTINEL = "# brutal-review managed hook";
 
-  if (!target || (target !== "github" && target !== "git")) {
-    console.error(c.red(`\n✗ Provide a valid hook target: 'github' or 'git'`));
-    console.error(`  Example: brutal hook github\n`);
+function getGitHooksDir() {
+  const hooksDir = path.join(process.cwd(), ".git", "hooks");
+  if (!fs.existsSync(hooksDir)) return null;
+  return hooksDir;
+}
+
+function installGitHook(hookName, scriptPath, hooksDir) {
+  if (!fs.existsSync(scriptPath)) {
+    console.log(`  ${c.red("✗")} Hook script not found: ${path.basename(scriptPath)}`);
+    return false;
+  }
+
+  const destPath = path.join(hooksDir, hookName);
+  const hookScript = `#!/bin/sh\n${BRUTAL_HOOK_SENTINEL}\nexec node "${scriptPath}" "$@"\n`;
+
+  if (fs.existsSync(destPath)) {
+    const existing = fs.readFileSync(destPath, "utf8");
+    if (!existing.includes(BRUTAL_HOOK_SENTINEL)) {
+      // Backup the existing hook and chain it
+      const backupPath = destPath + ".brutal-backup";
+      fs.copyFileSync(destPath, backupPath);
+      console.log(`  ${c.yellow("⚠")}  Backed up existing ${hookName} → ${hookName}.brutal-backup`);
+      const chainedScript = `#!/bin/sh\n${BRUTAL_HOOK_SENTINEL}\n# Run original hook first\n"${backupPath}" "$@"\nORIG_EXIT=$?\nif [ $ORIG_EXIT -ne 0 ]; then exit $ORIG_EXIT; fi\n# Then run brutal hook\nexec node "${scriptPath}" "$@"\n`;
+      fs.writeFileSync(destPath, chainedScript, "utf8");
+    } else {
+      fs.writeFileSync(destPath, hookScript, "utf8");
+    }
+  } else {
+    fs.writeFileSync(destPath, hookScript, "utf8");
+  }
+
+  fs.chmodSync(destPath, "755");
+  return true;
+}
+
+function removeGitHook(hookName, hooksDir) {
+  const destPath = path.join(hooksDir, hookName);
+  if (!fs.existsSync(destPath)) {
+    console.log(`  ${c.dim(`→ ${hookName} not installed`)}`);
     return;
   }
 
-  if (target === "github") {
-    const githubDir = path.join(process.cwd(), ".github", "workflows");
-    if (!fs.existsSync(githubDir)) fs.mkdirSync(githubDir, { recursive: true });
-    
-    const wfPath = path.join(githubDir, "brutal-review.yml");
-    const wfContent = `name: Brutal Review
+  const content = fs.readFileSync(destPath, "utf8");
+  if (!content.includes(BRUTAL_HOOK_SENTINEL)) {
+    console.log(`  ${c.yellow("⚠")}  ${hookName} exists but wasn't installed by brutal — skipping`);
+    return;
+  }
+
+  const backupPath = destPath + ".brutal-backup";
+  if (fs.existsSync(backupPath)) {
+    fs.copyFileSync(backupPath, destPath);
+    fs.unlinkSync(backupPath);
+    console.log(`  ${c.green("✔")} Restored original ${hookName}`);
+  } else {
+    fs.unlinkSync(destPath);
+    console.log(`  ${c.green("✔")} Removed ${hookName}`);
+  }
+}
+
+function buildGitHubActionsWorkflow(level) {
+  return `name: Brutal Review
+
+# Automated adversarial code review on every PR.
+# Powered by ${NPM_PKG} (npmjs.com/package/${NPM_PKG})
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
 
 jobs:
   brutal-review:
     runs-on: ubuntu-latest
+    name: Brutal Code Review (Level ${level})
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Get PR diff
-        run: git fetch origin \${{ github.base_ref }}
+        run: |
+          git fetch origin \${{ github.base_ref }}
+          git diff origin/\${{ github.base_ref }}...HEAD > pr-diff.txt
 
       - name: Run Brutal Review
+        id: review
         run: |
-          git diff origin/\${{ github.base_ref }} > diff.txt
-          npx brutal-review use code-reviewer --level 8 < diff.txt > review.txt || echo "No diff found"
+          if [ ! -s pr-diff.txt ]; then
+            echo "No diff found."
+            echo "review_body=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          npx ${NPM_PKG}@latest use code-reviewer --level ${level} < pr-diff.txt > review.txt 2>&1 || true
+          echo "review_body<<EOF" >> $GITHUB_OUTPUT
+          cat review.txt >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
-      - name: Comment on PR
+      - name: Post review comment
+        if: steps.review.outputs.review_body != ''
         uses: actions/github-script@v7
         with:
+          github-token: \${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            if (fs.existsSync('review.txt')) {
-              const body = fs.readFileSync('review.txt', 'utf8');
-              if (body.trim()) {
-                github.rest.issues.createComment({
-                  ...context.repo,
-                  issue_number: context.issue.number,
-                  body
-                });
+            const body = \`## 🧨 Brutal Review (Level ${level})\n\n\` + process.env.REVIEW_BODY + \`\n\n---\n_Automated by [brutal-review](https://npmjs.com/package/${NPM_PKG})_\`;
+            const comments = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number });
+            for (const comment of comments.data) {
+              if (comment.body.includes('Brutal Review') && comment.body.includes('brutal-review')) {
+                await github.rest.issues.deleteComment({ ...context.repo, comment_id: comment.id });
               }
             }
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+        env:
+          REVIEW_BODY: \${{ steps.review.outputs.review_body }}
 `;
-    fs.writeFileSync(wfPath, wfContent, "utf8");
-    console.log(`\n  ${c.green("✔")} Created ${c.cyan(".github/workflows/brutal-review.yml")}`);
-    console.log(`\nEvery PR will now be brutally reviewed automatically.\n`);
-  } else if (target === "git") {
-    const hooksDir = path.join(process.cwd(), ".git", "hooks");
-    if (!fs.existsSync(hooksDir)) {
-      console.error(c.red(`\n✗ .git/hooks directory not found. Are you in a git repository?\n`));
+}
+
+async function runHook(args) {
+  const rawArgs = args.filter(a => !a.startsWith("-"));
+  const target = rawArgs[0];
+
+  const wantCommitMsg  = args.includes("--commit-msg");
+  const wantPreCommit  = args.includes("--pre-commit");
+  const wantPrePush    = args.includes("--pre-push");
+  const wantAll        = args.includes("--all") || (!wantCommitMsg && !wantPreCommit && !wantPrePush && target === "git");
+
+  const levelIdx = args.indexOf("--level");
+  const level = levelIdx !== -1 && args[levelIdx + 1] ? parseInt(args[levelIdx + 1], 10) : 8;
+
+  // ── brutal hook uninstall ───────────────────────────────
+  if (target === "uninstall") {
+    const hooksDir = getGitHooksDir();
+    if (!hooksDir) { console.error(c.red(`\n✗ Not inside a git repository.\n`)); return; }
+    console.log(`\n  ${c.bold("Uninstalling brutal git hooks...")}\n`);
+    removeGitHook("commit-msg", hooksDir);
+    removeGitHook("pre-commit", hooksDir);
+    removeGitHook("pre-push", hooksDir);
+    console.log(`\n  ${c.dim("Done. Run brutal hook git to reinstall.")}\n`);
+    return;
+  }
+
+  // ── brutal hook git ─────────────────────────────────────
+  if (target === "git") {
+    const hooksDir = getGitHooksDir();
+    if (!hooksDir) {
+      console.error(c.red(`\n✗ .git/hooks not found. Run this from inside a git repository.\n`));
       return;
     }
 
-    const preCommitPath = path.join(hooksDir, "pre-commit");
-    const preCommitContent = `#!/bin/sh
-# brutal pre-commit hook
-echo "🧨 Running Brutal Pre-commit Check..."
-git diff --cached | npx brutal-review use code-reviewer --level 6
-`;
-    fs.writeFileSync(preCommitPath, preCommitContent, "utf8");
-    fs.chmodSync(preCommitPath, "755");
+    const hooksToBuild = [];
+    if (wantAll || wantCommitMsg) hooksToBuild.push({ name: "commit-msg", file: "commit-msg", desc: "Block lazy commit messages, suggest better ones" });
+    if (wantAll || wantPreCommit) hooksToBuild.push({ name: "pre-commit", file: "pre-commit", desc: "Scan staged diff for secrets & code smells" });
+    if (wantAll || wantPrePush)   hooksToBuild.push({ name: "pre-push",   file: "pre-push",   desc: "Guard against pushing to main & conflicts" });
 
-    console.log(`\n  ${c.green("✔")} Created ${c.cyan(".git/hooks/pre-commit")}`);
-    console.log(`\nYour staged changes will now be checked before every commit.\n`);
+    if (hooksToBuild.length === 0) {
+      console.error(c.red(`\n✗ Specify hooks: --commit-msg, --pre-commit, --pre-push, or --all\n`));
+      return;
+    }
+
+    console.log(`\n  🧨 ${c.bold("brutal hook git")}\n`);
+    console.log(`  ${c.dim("Installing into:")} ${c.cyan(hooksDir)}\n`);
+    hooksToBuild.forEach(h => console.log(`    ${c.green("◆")} ${h.name.padEnd(14)} ${c.dim(h.desc)}`));
+    console.log("");
+
+    if (process.stdin.isTTY) {
+      const confirmed = await confirmPrompt(`  ${c.bold("Install hooks?")}`, true);
+      if (!confirmed) { console.log(`\n  ${c.dim("Aborted.")}\n`); return; }
+    }
+
+    console.log("");
+    let installed = 0;
+    for (const hook of hooksToBuild) {
+      const scriptPath = path.join(HOOKS_DIR, hook.file);
+      if (installGitHook(hook.name, scriptPath, hooksDir)) {
+        console.log(`  ${c.green("✔")} ${hook.name}`);
+        installed++;
+      }
+    }
+
+    console.log("");
+    console.log(c.dim("────────────────────────────────────────────────────"));
+    console.log("");
+    console.log(`  ${c.green("✔")} ${c.bold(`${installed} hook(s) installed`)}`);
+    console.log(`  ${c.dim("Location:")} ${c.cyan(hooksDir)}`);
+    console.log("");
+    if (hooksToBuild.find(h => h.name === "commit-msg"))
+      console.log(`    ${c.cyan("commit-msg")}  Rejects lazy messages. Offers inline fix prompt.`);
+    if (hooksToBuild.find(h => h.name === "pre-commit"))
+      console.log(`    ${c.cyan("pre-commit")}  Blocks secrets. Warns on TODO/console.log/large diffs.`);
+    if (hooksToBuild.find(h => h.name === "pre-push"))
+      console.log(`    ${c.cyan("pre-push")}    Blocks direct pushes to main. Catches conflict markers.`);
+    console.log("");
+    console.log(`  ${c.dim("To uninstall:")} ${c.cyan("brutal hook uninstall")}`);
+    console.log(`  ${c.dim("To skip once:")} ${c.cyan("git commit --no-verify")}`);
+    console.log("");
+    return;
   }
+
+  // ── brutal hook github ──────────────────────────────────
+  if (target === "github") {
+    const githubDir = path.join(process.cwd(), ".github", "workflows");
+    if (!fs.existsSync(githubDir)) fs.mkdirSync(githubDir, { recursive: true });
+    const wfPath = path.join(githubDir, "brutal-review.yml");
+
+    console.log(`\n  🧨 ${c.bold("brutal hook github")}\n`);
+    console.log(`  ${c.dim("Generates:")} ${c.cyan(".github/workflows/brutal-review.yml")}`);
+    console.log(`  ${c.dim("Brutality:")} Level ${level}\n`);
+
+    if (fs.existsSync(wfPath)) console.log(`  ${c.yellow("⚠")}  Workflow already exists — overwriting.\n`);
+
+    if (process.stdin.isTTY) {
+      const confirmed = await confirmPrompt(`  ${c.bold("Create GitHub Actions workflow?")}`, true);
+      if (!confirmed) { console.log(`\n  ${c.dim("Aborted.")}\n`); return; }
+    }
+
+    fs.writeFileSync(wfPath, buildGitHubActionsWorkflow(level), "utf8");
+
+    console.log("");
+    console.log(`  ${c.green("✔")} Created ${c.cyan(".github/workflows/brutal-review.yml")}`);
+    console.log("");
+    console.log(`  ${c.bold("What happens now:")}`);
+    console.log(`    Every PR gets an automated brutal code review (Level ${level}) as a comment.`);
+    console.log(`    Old reviews are deleted before posting — no comment spam.`);
+    console.log("");
+    console.log(`  ${c.bold("Next steps:")}`);
+    console.log(`    ${c.cyan("git add .github/workflows/brutal-review.yml")}`);
+    console.log(`    ${c.cyan('git commit -m "ci: add brutal code review workflow"')}`);
+    console.log(`    ${c.cyan("git push")}`);
+    console.log("");
+    console.log(`  ${c.dim("Change level:")} ${c.cyan("brutal hook github --level 10")}`);
+    console.log("");
+    return;
+  }
+
+  // ── Help ────────────────────────────────────────────────
+  console.log(`
+  🧨 ${c.bold("brutal hook")} — plug into your entire dev cycle
+
+  ${c.bold("Git hooks")} ${c.dim("(local, per-repo):")}
+    ${c.cyan("brutal hook git")}              Install all 3 git hooks
+    ${c.cyan("brutal hook git --commit-msg")} Block lazy commit messages
+    ${c.cyan("brutal hook git --pre-commit")} Scan staged diff for secrets & smells
+    ${c.cyan("brutal hook git --pre-push")}   Guard before pushing
+    ${c.cyan("brutal hook uninstall")}         Remove all brutal git hooks
+
+  ${c.bold("GitHub Actions")} ${c.dim("(CI, runs on every PR):")}
+    ${c.cyan("brutal hook github")}            Default level 8
+    ${c.cyan("brutal hook github --level 10")} Nuclear PR reviews
+
+  ${c.bold("IDE integrations:")}
+    ${c.cyan("brutal export cursor")}          Export to .cursorrules
+    ${c.cyan("brutal export copilot")}         Export to .github/copilot-instructions.md
+  `);
 }
 
 // ── Router ────────────────────────────────────────────────────────────
@@ -1017,6 +1211,9 @@ async function main() {
     case "hook":
       await runHook(cmdArgs);
       break;
+    case "uninstall-hook":
+      await runHook(["uninstall"]);
+      break;
     case "config":
       await runConfig(cmdArgs);
       break;
@@ -1029,31 +1226,35 @@ async function main() {
 🔥 ${c.bold("brutal")} v${PKG.version} — no sugar, all signal
 
 ${c.bold("Commands:")}
-  ${c.cyan("brutal init")}           First-time setup
-  ${c.cyan("brutal install [name]")} Install skills (alias: ${c.dim("i")})
-  ${c.cyan("brutal use <skill>")}    Interactive prompt or piped input
-  ${c.cyan("brutal hook <target>")}  Auto-review integrations (github, git)
-  ${c.cyan("brutal config <cmd>")}   Manage settings (set, open)
-  ${c.cyan("brutal persona <cmd>")}  Manage personas (list, set, toggle, add)
-  ${c.cyan("brutal list")}           List all skills (alias: ${c.dim("ls")})
-  ${c.cyan("brutal status")}         Check installed skills (alias: ${c.dim("st")})
-  ${c.cyan("brutal remove <name>")}  Remove skills (alias: ${c.dim("rm")})
-  ${c.cyan("brutal doctor")}         Run diagnostics
-  ${c.cyan("brutal export")}         Export to Cursor/Copilot
-  ${c.cyan("brutal upgrade")}        Check for CLI updates
+  ${c.cyan("brutal init")}                First-time setup
+  ${c.cyan("brutal install [name]")}      Install skills (alias: ${c.dim("i")})
+  ${c.cyan("brutal use <skill>")}         Interactive prompt or piped input
+  ${c.cyan("brutal hook git --all")}      Install all 3 git hooks
+  ${c.cyan("brutal hook github")}         GitHub Actions PR review workflow
+  ${c.cyan("brutal hook uninstall")}      Remove all brutal git hooks
+  ${c.cyan("brutal export cursor")}       Export to .cursorrules
+  ${c.cyan("brutal export copilot")}      Export to .github/copilot-instructions.md
+  ${c.cyan("brutal config <cmd>")}        Manage settings (set, open)
+  ${c.cyan("brutal persona <cmd>")}       Manage personas (list, set, toggle, add)
+  ${c.cyan("brutal list")}               List all skills (alias: ${c.dim("ls")})
+  ${c.cyan("brutal status")}             Check installed skills (alias: ${c.dim("st")})
+  ${c.cyan("brutal remove <name>")}      Remove skills (alias: ${c.dim("rm")})
+  ${c.cyan("brutal doctor")}             Run diagnostics
+  ${c.cyan("brutal upgrade")}            Check for CLI updates
 
 ${c.bold("Characters:")} ${c.dim("(use --persona <name> to pick a reviewer personality)")}
   Run ${c.cyan("brutal persona list")} to see available personas.
 
 ${c.bold("Mid-session overrides:")}
-  ${c.cyan("/persona <name>")}       Switch persona mid-session
-  ${c.cyan("/level <0-10>")}         Adjust brutality level mid-session
+  ${c.cyan("/persona <name>")}          Switch persona mid-session
+  ${c.cyan("/level <0-10>")}            Adjust brutality level mid-session
 
 ${c.bold("Examples:")}
   brutal use code-reviewer --persona chow
-  npx brutal-review use code-reviewer --level 10
+  npx ${NPM_PKG} use code-reviewer --level 10
   git diff | brutal use code-reviewer --persona alan
-  brutal install --project
+  brutal hook git --all
+  brutal hook github --level 10
   brutal export cursor
       `);
       break;

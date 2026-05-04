@@ -6,14 +6,14 @@
 
 # brutal-claude-skills
 
-**17 no-mercy, adversarial-helpful skills for Claude Code.**
+**18 no-mercy, adversarial-helpful skills for Claude Code.**
 
 Code reviews, roasting, design critiques, devil's advocate, pre-mortems, and more — all designed to make your work better, not your feelings warmer.
 
-[![npm version](https://img.shields.io/npm/v/brutal-claude-skills?style=flat-square&color=cb3837)](https://www.npmjs.com/package/brutal-claude-skills)
-[![npm downloads](https://img.shields.io/npm/dt/brutal-claude-skills?style=flat-square&color=blue)](https://www.npmjs.com/package/brutal-claude-skills)
+[![npm version](https://img.shields.io/npm/v/brutal-review?style=flat-square&color=cb3837)](https://www.npmjs.com/package/brutal-review)
+[![npm downloads](https://img.shields.io/npm/dt/brutal-review?style=flat-square&color=blue)](https://www.npmjs.com/package/brutal-review)
 [![node](https://img.shields.io/badge/node-%3E%3D18-339933?style=flat-square&logo=node.js&logoColor=white)](./package.json)
-[![skills](https://img.shields.io/badge/skills-17-f59e0b?style=flat-square)](./skills)
+[![skills](https://img.shields.io/badge/skills-18-f59e0b?style=flat-square)](./skills)
 [![zero deps](https://img.shields.io/badge/dependencies-0-22c55e?style=flat-square)](./package.json)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](./CONTRIBUTING.md)
 
@@ -38,7 +38,7 @@ Every skill stays on the **work**, not the **person**. Hard limits are baked in.
 ### Option 1: Run directly (no install needed)
 
 ```bash
-npx brutal-claude-skills@latest init
+npx brutal-review@latest init
 ```
 
 > **⚠️ Always use `@latest`** — `npx` caches old versions aggressively. Without `@latest`, you may get a stale version.
@@ -46,7 +46,7 @@ npx brutal-claude-skills@latest init
 ### Option 2: Install globally (recommended)
 
 ```bash
-npm install -g brutal-claude-skills
+npm install -g brutal-review
 
 # Now you can just type:
 brutal init
@@ -74,10 +74,10 @@ Once installed, use the killer feature to pipe or paste code directly into a bru
 
 ```bash
 # Pipe git diff straight to the reviewer
-git diff | npx brutal-claude-skills use code-reviewer
+git diff | npx brutal-review use code-reviewer
 
 # Or run interactively (paste your code)
-npx brutal-claude-skills use architecture-reviewer --level 10
+npx brutal-review use architecture-reviewer --level 10
 ```
 
 *This will automatically launch Claude Code with the correct prompt and your input.*
@@ -87,7 +87,7 @@ npx brutal-claude-skills use architecture-reviewer --level 10
 ## Command Reference
 
 The CLI uses a clean, one-command mental model: `brutal <action>`. 
-*(Note: If installing globally via `npm i -g brutal-claude-skills`, you can just type `brutal` instead of `npx brutal-claude-skills`)*
+*(Note: If installing globally via `npm i -g brutal-review`, you can just type `brutal` instead of `npx brutal-review`)*
 
 ```bash
 brutal init               # First-time setup (installs engineering pack)
@@ -98,6 +98,8 @@ brutal status             # Check installed skills (alias: st)
 brutal remove <skill>     # Remove skills (alias: rm)
 brutal doctor             # Run diagnostics
 brutal export cursor      # Export to Cursor (.cursorrules)
+brutal hook git --all     # Install all 3 git hooks
+brutal hook github        # Add GitHub Actions PR review
 brutal upgrade            # Check for updates
 ```
 
@@ -113,7 +115,7 @@ brutal install pack <name>
 
 | Pack | Skills | What it covers |
 | :--- | :---: | :--- |
-| **`engineering`** | 5 | Code reviewer, commit reviewer, design critic, architecture reviewer, web vitals reviewer |
+| **`engineering`** | 6 | Code quality, code reviewer, commit reviewer, design critic, architecture reviewer, web vitals reviewer |
 | **`writing`** | 3 | Writing editor, README reviewer, email reviewer |
 | **`strategy`** | 4 | Devil's advocate, pre-mortem, assumption auditor, BS detector |
 | **`career`** | 2 | Resume reviewer, interview prep destroyer |
@@ -145,10 +147,11 @@ brutal status
 
 ## The Skills
 
-### <img src="https://img.shields.io/badge/CRITICS-11_skills-dc2626?style=flat-square&labelColor=1c1917" alt="Critics" /> — review your work product
+### <img src="https://img.shields.io/badge/CRITICS-12_skills-dc2626?style=flat-square&labelColor=1c1917" alt="Critics" /> — review your work product
 
 | Skill | What it tears apart |
 | :--- | :--- |
+| **`code-quality-review`** | Code quality, correctness, maintainability, scalability |
 | **`brutal-code-reviewer`** | Code, PRs, diffs — no mercy engineering scrutiny |
 | **`brutal-architecture-reviewer`** | System design, service boundaries, infra decisions |
 | **`brutal-web-vitals-reviewer`** | LCP, INP, CLS, frontend performance |
@@ -221,6 +224,55 @@ Every skill supports a **brutality level** from 0 to 10. Default is **7**. Just 
 | 7–8 | **Savage** | Mocking. Dismissive. Full roast energy. |
 | 9–10 | **Nuclear** | Profanity unlocked. Gordon Ramsay mode. |
 
+## 🔗 Integrations — Cover the Entire Dev Cycle
+
+Brutal can embed itself into every stage of your workflow — from keystroke to merged PR.
+
+### Git Hooks (local, per-repo)
+
+Install in one command from inside any git repo:
+
+```bash
+# Install all 3 hooks at once
+npx brutal-review hook git --all
+
+# Or pick specific hooks
+npx brutal-review hook git --commit-msg   # Block lazy commit messages
+npx brutal-review hook git --pre-commit   # Scan staged diff for secrets & smells
+npx brutal-review hook git --pre-push     # Guard against pushing to main
+
+# Uninstall (non-destructive — restores your originals)
+npx brutal-review hook uninstall
+```
+
+**What each hook does:**
+
+| Hook | Trigger | Action |
+| :--- | :--- | :--- |
+| **`commit-msg`** | `git commit` | Blocks lazy messages (`"fix stuff"`, `"wip"`). Offers an inline fix prompt. |
+| **`pre-commit`** | `git commit` | Scans staged diff. Blocks secrets & API keys. Warns on TODOs and large diffs. |
+| **`pre-push`** | `git push` | Blocks direct pushes to `main`. Catches unresolved conflict markers. |
+
+To skip a hook for a single commit (use carefully):
+```bash
+git commit --no-verify
+```
+
+### GitHub Actions (automated PR review)
+
+```bash
+npx brutal-review hook github             # Default level 8
+npx brutal-review hook github --level 10  # Nuclear
+```
+
+This generates `.github/workflows/brutal-review.yml`. Every PR gets a brutal code review posted as a comment. Old reviews are automatically replaced — no spam.
+
+```bash
+git add .github/workflows/brutal-review.yml
+git commit -m "ci: add brutal code review workflow"
+git push
+```
+
 > [!IMPORTANT]
 ### Export to Cursor & Copilot
 
@@ -228,10 +280,10 @@ You can use these brutal personas in other AI coding assistants. Export them as 
 
 ```bash
 # Export the engineering pack to Cursor
-npx brutal-claude-skills export --export-target cursor --pack engineering
+npx brutal-review export cursor --pack engineering
 
 # Export a specific skill to GitHub Copilot
-npx brutal-claude-skills export --export-target copilot --skill brutal-code-reviewer
+npx brutal-review export copilot brutal-code-reviewer
 ```
 
 ### Programmatic API
@@ -239,7 +291,7 @@ npx brutal-claude-skills export --export-target copilot --skill brutal-code-revi
 Building a custom PR review bot? An internal Slack integration? You can consume the prompts programmatically via Node.js:
 
 ```javascript
-const { getSkill, listSkills } = require('brutal-claude-skills');
+const { getSkill, listSkills } = require('brutal-review');
 
 // Get all available skill names
 const skills = listSkills();
@@ -276,10 +328,13 @@ cp -r skills/* ~/.claude/skills/
 
 ```bash
 # Remove a specific skill
-npx brutal-claude-skills --uninstall brutal-code-reviewer
+npx brutal-review remove brutal-code-reviewer
 
 # Remove all installed skills
-npx brutal-claude-skills --uninstall --all
+npx brutal-review remove all
+
+# Remove git hooks
+npx brutal-review hook uninstall
 ```
 
 ---

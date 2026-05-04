@@ -1,0 +1,179 @@
+#!/usr/bin/env node
+/**
+ * brutal pre-push hook
+ * Last gate before code leaves your machine.
+ * Checks: branch name sanity, unresolved conflicts, push-to-main protection.
+ *
+ * Installed via: brutal hook git --pre-push
+ */
+
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
+
+// ── ANSI helpers ─────────────────────────────────────────────
+const c = {
+  bold: (s) => `\x1b[1m${s}\x1b[0m`,
+  dim: (s) => `\x1b[2m${s}\x1b[0m`,
+  red: (s) => `\x1b[31m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+};
+
+// ── Read push targets from stdin ──────────────────────────────
+// Git passes: <local ref> <local sha1> <remote ref> <remote sha1>
+let pushData = "";
+try {
+  // Read stdin synchronously
+  const fd = fs.openSync("/dev/stdin", "r");
+  const buf = Buffer.alloc(4096);
+  let n;
+  while ((n = fs.readSync(fd, buf, 0, 4096, null)) > 0) {
+    pushData += buf.slice(0, n).toString("utf8");
+  }
+  fs.closeSync(fd);
+} catch (e) {
+  // stdin unavailable — proceed
+}
+
+const remoteUrl = process.argv[2] || "";
+const remoteName = process.argv[3] || "origin";
+
+// ── Get current branch ────────────────────────────────────────
+let currentBranch = "";
+try {
+  currentBranch = execSync("git rev-parse --abbrev-ref HEAD", {
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+} catch (e) {
+  process.exit(0);
+}
+
+// ── Checks ────────────────────────────────────────────────────
+let criticalIssues = [];
+let warnings = [];
+
+// 1. Direct push to main/master protection
+const protectedBranches = ["main", "master", "production", "prod", "release"];
+if (protectedBranches.includes(currentBranch)) {
+  criticalIssues.push({
+    name: `Direct push to ${c.bold(currentBranch)} branch`,
+    detail: "Use a feature branch and open a PR. This exists to protect you from yourself.",
+  });
+}
+
+// 2. Unresolved merge conflict markers
+let conflictFiles = [];
+try {
+  const tracked = execSync("git ls-files", { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] })
+    .trim()
+    .split("\n")
+    .filter(Boolean);
+
+  for (const file of tracked) {
+    try {
+      const content = fs.readFileSync(file, "utf8");
+      if (/<<<<<<<|=======|>>>>>>>/.test(content)) {
+        conflictFiles.push(file);
+      }
+    } catch (e) {
+      // Skip unreadable files (binaries, etc.)
+    }
+  }
+
+  if (conflictFiles.length > 0) {
+    criticalIssues.push({
+      name: `Unresolved merge conflict markers in ${conflictFiles.length} file(s)`,
+      detail: conflictFiles.slice(0, 5).join(", ") + (conflictFiles.length > 5 ? ` ... +${conflictFiles.length - 5} more` : ""),
+    });
+  }
+} catch (e) {
+  // Skip
+}
+
+// 3. Branch naming conventions (warning only)
+const goodBranchPattern = /^(feat|fix|chore|docs|style|refactor|test|hotfix|release)\/.+/;
+const isTemporaryName = /^(temp|tmp|test|dev|my-branch|branch|new-branch|fix|feature)$/i.test(currentBranch);
+
+if (!goodBranchPattern.test(currentBranch) && !protectedBranches.includes(currentBranch)) {
+  warnings.push({
+    name: `Branch name "${currentBranch}" doesn't follow convention`,
+    detail: "Consider: feat/your-feature, fix/bug-name, chore/task-name",
+  });
+}
+
+if (isTemporaryName) {
+  warnings.push({
+    name: `"${currentBranch}" is a throwaway branch name`,
+    detail: "Name your branches like you'll git blame them in 3 months. Because you will.",
+  });
+}
+
+// 4. Commits with no upstream (check commit count being pushed)
+try {
+  const pushLines = pushData.trim().split("\n").filter(Boolean);
+  for (const line of pushLines) {
+    const parts = line.split(" ");
+    if (parts.length >= 4) {
+      const localSha = parts[1];
+      const remoteSha = parts[3];
+      const zeroSha = "0000000000000000000000000000000000000000";
+
+      if (remoteSha !== zeroSha && localSha !== zeroSha) {
+        const range = `${remoteSha}..${localSha}`;
+        const log = execSync(`git log --oneline ${range} 2>/dev/null || echo ""`, {
+          encoding: "utf8",
+          shell: true,
+        }).trim();
+        const commitCount = log ? log.split("\n").length : 0;
+
+        if (commitCount > 20) {
+          warnings.push({
+            name: `Pushing ${commitCount} commits at once`,
+            detail: "Large pushes make code review painful. Consider feature flags or smaller PRs.",
+          });
+        }
+      }
+    }
+  }
+} catch (e) {
+  // Skip
+}
+
+// ── Print results ─────────────────────────────────────────────
+const hasIssues = criticalIssues.length > 0 || warnings.length > 0;
+
+if (!hasIssues) {
+  process.stderr.write(`${c.green("✔")} ${c.dim("brutal pre-push: clear")}\n`);
+  process.exit(0);
+}
+
+process.stderr.write(`\n🧨 ${c.bold("brutal pre-push")} — last gate check...\n\n`);
+
+if (criticalIssues.length > 0) {
+  process.stderr.write(`${c.red("✗ BLOCKED:\n")}\n`);
+  for (const issue of criticalIssues) {
+    process.stderr.write(`  ${c.red("→")} ${c.bold(issue.name)}\n`);
+    if (issue.detail) process.stderr.write(`    ${c.dim(issue.detail)}\n`);
+  }
+  process.stderr.write("\n");
+}
+
+if (warnings.length > 0) {
+  process.stderr.write(`${c.yellow("⚠ HEADS UP:\n")}\n`);
+  for (const w of warnings) {
+    process.stderr.write(`  ${c.yellow("→")} ${w.name}\n`);
+    if (w.detail) process.stderr.write(`    ${c.dim(w.detail)}\n`);
+  }
+  process.stderr.write("\n");
+}
+
+if (criticalIssues.length > 0) {
+  process.stderr.write(`${c.red("  Push aborted.")} ${c.dim("To override: git push --no-verify")}\n\n`);
+  process.exit(1);
+} else {
+  process.stderr.write(`${c.yellow("  Pushing anyway.")} ${c.dim("Your call.")}\n\n`);
+  process.exit(0);
+}

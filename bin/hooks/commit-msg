@@ -1,0 +1,197 @@
+#!/usr/bin/env node
+/**
+ * brutal commit-msg hook
+ * Intercepts git commit messages, validates them, and blocks bad ones.
+ * Auto-suggests a better message based on the staged diff.
+ *
+ * Installed via: brutal hook git --commit-msg
+ */
+
+const fs = require("fs");
+const path = require("path");
+const readline = require("readline");
+const { execSync, spawnSync } = require("child_process");
+
+// ── ANSI helpers ─────────────────────────────────────────────
+const c = {
+  bold: (s) => `\x1b[1m${s}\x1b[0m`,
+  dim: (s) => `\x1b[2m${s}\x1b[0m`,
+  red: (s) => `\x1b[31m${s}\x1b[0m`,
+  green: (s) => `\x1b[32m${s}\x1b[0m`,
+  yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+  cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+};
+
+// ── Read the commit message ───────────────────────────────────
+const msgFile = process.argv[2];
+if (!msgFile || !fs.existsSync(msgFile)) {
+  process.exit(0); // Nothing to validate
+}
+
+const rawMsg = fs.readFileSync(msgFile, "utf8").trim();
+// Strip comments (lines starting with #)
+const commitMsg = rawMsg
+  .split("\n")
+  .filter((l) => !l.startsWith("#"))
+  .join("\n")
+  .trim();
+
+const subject = commitMsg.split("\n")[0].trim();
+
+// ── Blacklist patterns ────────────────────────────────────────
+const LAZY_PATTERNS = [
+  /^(wip|tmp|temp|asdf|test|\.+|xxx+)$/i,
+  /^(fix|fixes|fixed|fixing)$/i,
+  /^(fix|fixes|fixed|update[ds]?|change[ds]?|edit[ds]?) (stuff|things|it|this|that|code|file[s]?)$/i,
+  /^(final|final\s+v?\d+|final\s+final|v\d+\s+final)$/i,
+  /^(address|addressing|addressed)\s+(comment[s]?|feedback|review)(\s+#?\d+)?$/i,
+  /^(small|minor|tiny)\s+(change[s]?|update[s]?|fix(es)?)$/i,
+  /^weekly\s+commit$/i,
+  /^(more changes|some changes|various changes|misc)$/i,
+  /^(update[ds]?|change[ds]?|edit[ds]?)\s+\w+\.(js|ts|py|go|rb|java|css|html|md)$/i,
+  /^save\s+(progress|work|state)$/i,
+  /^(debug|debugging|wip debug)$/i,
+  /^no message$/i,
+];
+
+const FORM_RULES = [
+  {
+    check: (s) => s.length > 72,
+    msg: `Subject is ${subject.length} characters. Max is 72. Trim it.`,
+  },
+  {
+    check: (s) => s.endsWith("."),
+    msg: `Subject ends with a period. Commit messages are titles, not sentences.`,
+  },
+  {
+    check: (s) => /^(added|fixed|changed|updated|removed|deleted)/i.test(s),
+    msg: `Past tense ("${s.split(" ")[0]}"). Use imperative mood: "${s.split(" ")[0].replace(/ed$/i, "").replace(/d$/i, "")} ..."`,
+  },
+  {
+    check: (s) => /^(adding|fixing|changing|updating|removing)/i.test(s),
+    msg: `Gerund ("${s.split(" ")[0]}"). Use imperative mood: "${s.split(" ")[0].replace(/ing$/i, "")} ..."`,
+  },
+];
+
+// ── Validate ──────────────────────────────────────────────────
+const isLazy = LAZY_PATTERNS.some((p) => p.test(subject));
+const formViolations = FORM_RULES.filter((r) => r.check(subject)).map(
+  (r) => r.msg
+);
+const hasIssues = isLazy || formViolations.length > 0;
+
+if (!hasIssues) {
+  // Good message — let it through silently
+  process.exit(0);
+}
+
+// ── Print the rejection ───────────────────────────────────────
+process.stderr.write("\n");
+process.stderr.write(
+  `${c.red("✗")} ${c.bold("Commit rejected.")} Your message was:\n`
+);
+process.stderr.write(`\n  ${c.yellow(`"${subject}"`)}\n\n`);
+
+if (isLazy) {
+  process.stderr.write(
+    `${c.red("  →")} Lazy message detected. This tells your future self nothing.\n`
+  );
+}
+for (const v of formViolations) {
+  process.stderr.write(`${c.red("  →")} ${v}\n`);
+}
+
+process.stderr.write("\n");
+process.stderr.write(
+  `${c.dim("  A good subject answers: What changed, in what area, and why?")}\n`
+);
+process.stderr.write(
+  `${c.dim("  Format: <type>(<scope>): <imperative verb> <what>")}\n`
+);
+process.stderr.write(`${c.dim("  Example: fix(auth): handle empty token on login\n")}\n`);
+
+// ── Try to auto-suggest from staged diff ─────────────────────
+let suggestion = null;
+try {
+  const diff = execSync("git diff --cached --stat --no-color", {
+    encoding: "utf8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+
+  if (diff) {
+    // Parse the diff stat to understand the scope
+    const lines = diff.split("\n");
+    const summary = lines[lines.length - 1]; // e.g. "3 files changed, 47 insertions(+), 12 deletions(-)"
+    const files = lines
+      .slice(0, -1)
+      .map((l) => l.trim().split(/\s+/)[0])
+      .filter(Boolean);
+
+    const filesStr = files.slice(0, 3).join(", ") + (files.length > 3 ? ` (+${files.length - 3} more)` : "");
+
+    // Detect the most likely "type" from file extensions / names
+    let type = "chore";
+    const allFiles = files.join(" ").toLowerCase();
+    if (allFiles.includes("test") || allFiles.includes("spec")) type = "test";
+    else if (allFiles.includes(".md") || allFiles.includes("readme") || allFiles.includes("doc")) type = "docs";
+    else if (allFiles.includes("package.json") || allFiles.includes("package-lock") || allFiles.includes("yarn.lock")) type = "chore";
+    else if (allFiles.includes("style") || allFiles.includes(".css") || allFiles.includes(".scss")) type = "style";
+    else type = "fix"; // safe default
+
+    // Detect scope from most changed path
+    let scope = "";
+    const topFile = files[0] || "";
+    const parts = topFile.split("/");
+    if (parts.length > 1) scope = `(${parts[0]})`;
+
+    suggestion = `${type}${scope}: describe what changed and why`;
+    process.stderr.write(`${c.cyan("  Staged changes:")}\n`);
+    process.stderr.write(`  ${c.dim(filesStr)}\n`);
+    process.stderr.write(`  ${c.dim(summary)}\n\n`);
+    process.stderr.write(`${c.cyan("  Suggested format:")}\n`);
+    process.stderr.write(`  ${c.green(suggestion)}\n\n`);
+  }
+} catch (e) {
+  // Git diff failed — don't block, just skip the suggestion
+}
+
+// ── Interactive prompt: fix it now or abort? ──────────────────
+if (process.stdin.isTTY && process.stdout.isTTY) {
+  process.stderr.write(
+    `${c.bold("  Fix it now?")} Type a new message and press Enter, or leave blank to abort:\n`
+  );
+  process.stderr.write(`  ${c.dim("(Ctrl+C to cancel)")}\n\n  > `);
+
+  try {
+    // Read one line synchronously via /dev/tty
+    const tty = fs.openSync("/dev/tty", "r+");
+    const buf = Buffer.alloc(512);
+    const n = fs.readSync(tty, buf, 0, 512, null);
+    fs.closeSync(tty);
+    const newMsg = buf.slice(0, n).toString("utf8").trim();
+
+    if (newMsg && newMsg.length > 0) {
+      // Write the new message back to the commit msg file
+      fs.writeFileSync(msgFile, newMsg + "\n", "utf8");
+      process.stderr.write(`\n  ${c.green("✔")} Commit message updated. Proceeding...\n\n`);
+      process.exit(0);
+    } else {
+      process.stderr.write(
+        `\n  ${c.red("✗")} Commit aborted. Fix your message and try again.\n\n`
+      );
+      process.exit(1);
+    }
+  } catch (e) {
+    // /dev/tty unavailable (e.g. Windows or non-interactive)
+    process.stderr.write(
+      `\n  ${c.red("✗")} Commit aborted. Fix your message and run git commit again.\n\n`
+    );
+    process.exit(1);
+  }
+} else {
+  // Non-interactive (CI/piped) — always block
+  process.stderr.write(
+    `  ${c.red("✗")} Commit aborted. Fix your message and run git commit again.\n\n`
+  );
+  process.exit(1);
+}
