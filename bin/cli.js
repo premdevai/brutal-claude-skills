@@ -1083,6 +1083,100 @@ async function runHook(args) {
   `);
 }
 
+// ── Version / Upgrade ────────────────────────────────────────────────
+
+async function fetchLatestVersion(pkgName) {
+  return new Promise((resolve, reject) => {
+    const https = require('https');
+    const url = `https://registry.npmjs.org/${pkgName}/latest`;
+    const req = https.get(url, { timeout: 8000 }, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          resolve(json.version);
+        } catch (e) {
+          reject(new Error('Failed to parse npm registry response'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
+  });
+}
+
+function semverGt(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+async function runVersion() {
+  console.log(`\n  ${c.bold('brutal-review')} ${c.cyan(`v${PKG.version}`)}\n`);
+  console.log(`  ${c.dim('Checking latest on npm...')}`);
+  try {
+    const latest = await fetchLatestVersion(NPM_PKG);
+    if (semverGt(latest, PKG.version)) {
+      console.log(`  ${c.yellow('\u26a0')}  Update available: ${c.dim(`v${PKG.version}`)} \u2192 ${c.green(`v${latest}`)}`);
+      console.log(`  Run ${c.cyan('brutal upgrade')} to update.\n`);
+    } else {
+      console.log(`  ${c.green('\u2714')}  You're on the latest version (${c.cyan(`v${PKG.version}`)})\n`);
+    }
+  } catch (e) {
+    console.log(`  ${c.dim('(Could not reach npm registry — offline?)')}\n`);
+  }
+}
+
+async function runUpgrade() {
+  const current = PKG.version;
+  console.log(`\n  ${c.bold('brutal upgrade')}\n`);
+  console.log(`  Current:  ${c.cyan(`v${current}`)}`);
+  console.log(`  ${c.dim('Checking npm for latest...')}`);
+
+  let latest;
+  try {
+    latest = await fetchLatestVersion(NPM_PKG);
+  } catch (e) {
+    console.log(`\n  ${c.red('\u2717')}  Could not reach npm registry. Are you online?\n`);
+    return;
+  }
+
+  console.log(`  Latest:   ${c.green(`v${latest}`)}\n`);
+
+  if (!semverGt(latest, current)) {
+    console.log(`  ${c.green('\u2714')}  Already up to date. Nothing to do.\n`);
+    return;
+  }
+
+  console.log(`  ${c.yellow('\u26a0')}  New version available: ${c.dim(`v${current}`)} \u2192 ${c.green(`v${latest}`)}`);
+  console.log('');
+
+  if (process.stdin.isTTY) {
+    const confirmed = await confirmPrompt(`  ${c.bold('Install update now?')}`, true);
+    if (!confirmed) {
+      console.log(`\n  ${c.dim('Upgrade skipped. Run')} ${c.cyan('brutal upgrade')} ${c.dim('when ready.')}\n`);
+      return;
+    }
+  }
+
+  console.log('');
+  console.log(`  ${c.dim('Installing...')}`);
+  try {
+    execSync(`npm install -g ${NPM_PKG}@latest`, { stdio: 'inherit' });
+    console.log('');
+    console.log(`  ${c.green('\u2714')}  Updated to ${c.cyan(`v${latest}`)} — restart your terminal if the binary feels stale.\n`);
+  } catch (e) {
+    console.log('');
+    console.log(`  ${c.red('\u2717')}  npm install failed. Try manually:`);
+    console.log(`       ${c.cyan(`npm install -g ${NPM_PKG}@latest`)}\n`);
+  }
+}
+
 // ── Router ────────────────────────────────────────────────────────────
 
 async function runConfig(args) {
@@ -1205,8 +1299,14 @@ async function main() {
     case "export":
       await runExport(cmdArgs);
       break;
+    case "version":
+    case "--version":
+    case "-v":
+      await runVersion();
+      break;
     case "upgrade":
-      console.log(`\nChecking for updates...\n\n✔ You're on latest version (${PKG.version})\n`);
+    case "update":
+      await runUpgrade();
       break;
     case "hook":
       await runHook(cmdArgs);
@@ -1240,7 +1340,8 @@ ${c.bold("Commands:")}
   ${c.cyan("brutal status")}             Check installed skills (alias: ${c.dim("st")})
   ${c.cyan("brutal remove <name>")}      Remove skills (alias: ${c.dim("rm")})
   ${c.cyan("brutal doctor")}             Run diagnostics
-  ${c.cyan("brutal upgrade")}            Check for CLI updates
+  ${c.cyan("brutal version")}            Show current version + update check
+  ${c.cyan("brutal upgrade")}            Pull latest from npm and install
 
 ${c.bold("Characters:")} ${c.dim("(use --persona <name> to pick a reviewer personality)")}
   Run ${c.cyan("brutal persona list")} to see available personas.
