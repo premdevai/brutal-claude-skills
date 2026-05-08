@@ -1,6 +1,6 @@
 {
   "name": "brutal-review",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "18 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
   "main": "index.js",
   "bin": {
