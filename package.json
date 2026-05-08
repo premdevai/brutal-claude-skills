@@ -1,7 +1,7 @@
 {
   "name": "brutal-review",
-  "version": "1.5.0",
-  "description": "18 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
+  "version": "1.6.0",
+  "description": "19 no-mercy, adversarial-helpful skills for Claude Code. Brutal code reviews, production readiness gates, savage roasts, devil's advocate, pre-mortems, and more — designed to make your work better, not your feelings warmer.",
   "main": "index.js",
   "bin": {
     "brutal": "bin/cli.js",
@@ -30,7 +30,10 @@
     "devils-advocate",
     "pre-mortem",
     "prompt-engineering",
-    "developer-tools"
+    "developer-tools",
+    "production-readiness",
+    "ship-check",
+    "pre-push"
   ],
   "author": "premdevai",
   "license": "MIT",
